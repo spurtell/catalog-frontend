@@ -1,0 +1,46 @@
+<!-- Catalog Browse View: Filter Bar + Card Grid -->
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+  <div class="filter-row" style="margin-bottom: 0.75rem;">
+    <div class="filter-group" style="width: 100%;">
+      <label>Search</label>
+      <input type="text" id="filterSearch" placeholder="Search titles and summaries..." style="min-width: 100%;">
+    </div>
+  </div>
+  <div class="filter-row">
+    <div class="filter-group">
+      <label>Function Area</label>
+      <select id="filterFunctionArea"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Component</label>
+      <select id="filterComponent"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Status</label>
+      <select id="filterStatus"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Type</label>
+      <select id="filterResourceType"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Scope</label>
+      <select id="filterScope"><option value="">All</option></select>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-secondary btn-small" id="clearFilters">Clear</button>
+      <span class="item-count" id="itemCount"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Card Grid -->
+<div id="cardGrid" class="card-grid"></div>
+
+<!-- Empty State -->
+<div id="catalogEmpty" class="empty-state" style="display:none;">
+  <h3>No resources match your filters</h3>
+  <p>Try adjusting or clearing your filters.</p>
+</div>

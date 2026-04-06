@@ -1,0 +1,28 @@
+<!-- Team Directory View: Tabbed sub-tables with inline editing -->
+
+<!-- Sub-table Tabs -->
+<div class="td-tabs" id="tdTabs">
+  <button class="td-tab active" data-tab="Triad Map">Triad Map</button>
+  <button class="td-tab" data-tab="Guilds">Guilds</button>
+  <button class="td-tab" data-tab="Key Meetings">Key Meetings</button>
+  <button class="td-tab" data-tab="Slack Channels">Slack Channels</button>
+  <button class="td-tab" data-tab="Slack Groups">Slack Groups</button>
+  <button class="td-tab" data-tab="Mailing Lists">Mailing Lists</button>
+</div>
+
+<!-- Toolbar -->
+<div class="td-toolbar">
+  <button class="btn btn-primary btn-small" id="tdAddRow">+ Add Row</button>
+  <button class="btn btn-secondary btn-small" id="tdDeleteRow">Delete Selected</button>
+</div>
+
+<!-- Table Container -->
+<div id="tdTableContainer">
+  <!-- Table will be rendered here by JavaScript -->
+</div>
+
+<!-- Empty State -->
+<div id="tdEmpty" class="empty-state" style="display:none;">
+  <h3>No data in this tab</h3>
+  <p>Add a row to get started.</p>
+</div>

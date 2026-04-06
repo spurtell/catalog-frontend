@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ACM Resource Catalog</title>
+  <?!= include('Styles'); ?>
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-content">
+      <h1>ACM Resource Catalog</h1>
+      <div class="header-buttons">
+        <button id="addBtn" class="btn btn-primary" style="display:none;">+ Add Resource</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="nav-tabs">
+    <button class="nav-tab active" data-view="catalog">Catalog</button>
+    <button class="nav-tab" data-view="team-directory">Team Directory</button>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-container">
+    <!-- Loading State -->
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="loading-spinner"></div>
+      <p>Loading...</p>
+    </div>
+
+    <!-- Catalog View -->
+    <div id="catalogView" style="display:none;">
+      <?!= include('CatalogBrowse'); ?>
+    </div>
+
+    <!-- Team Directory View -->
+    <div id="teamDirectoryView" style="display:none;">
+      <?!= include('TeamDirectory'); ?>
+    </div>
+  </main>
+
+  <!-- Catalog Edit/Add Modal -->
+  <div id="catalogModal" class="modal" style="display:none;">
+    <div class="modal-backdrop" id="catalogModalBackdrop"></div>
+    <?!= include('CatalogForm'); ?>
+  </div>
+
+  <!-- Confirm Dialog -->
+  <div id="confirmDialog" class="confirm-overlay" style="display:none;">
+    <div class="confirm-dialog">
+      <h3 id="confirmTitle">Confirm</h3>
+      <p id="confirmMessage">Are you sure?</p>
+      <div class="confirm-actions">
+        <button class="btn btn-secondary" id="confirmCancel">Cancel</button>
+        <button class="btn btn-danger" id="confirmOk">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Message Banner -->
+  <div id="messageBanner" class="message-banner" style="display:none;"></div>
+
+  <?!= include('Script'); ?>
+</body>
+</html>

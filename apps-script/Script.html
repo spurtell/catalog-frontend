@@ -1,0 +1,680 @@
+<script>
+/* ===================================================================
+   ACM Resource Catalog — Client-side JavaScript
+   =================================================================== */
+
+// ─── State ──────────────────────────────────────────────────────────
+var catalogData = [];        // All catalog rows from sheet
+var filterOptions = {};      // Unique values per column for dropdowns
+var currentView = 'catalog'; // 'catalog' | 'team-directory'
+
+// Team Directory state
+var tdCurrentTab = 'Triad Map';
+var tdData = {};             // { tabName: {headers, rows} }
+var tdSelectedRow = null;
+
+// Column header names (must match Sheet)
+var CATALOG_COLS = {
+  title: 'Title',
+  resourceType: 'Resource Type',
+  functionArea: 'Function Area',
+  component: 'Component',
+  systemOfRecord: 'System of Record',
+  link: 'Link',
+  owner: 'Owner/DRI',
+  status: 'Status',
+  lastReviewed: 'Last Reviewed',
+  reviewCadence: 'Review Cadence',
+  summary: 'Short Summary',
+  scope: 'Scope'
+};
+
+// ─── Initialization ─────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  setupNavigation();
+  setupCatalogFilters();
+  setupCatalogModal();
+  setupTeamDirectory();
+  setupConfirmDialog();
+  loadCatalogData();
+});
+
+// ─── Navigation ─────────────────────────────────────────────────────
+function setupNavigation() {
+  var tabs = document.querySelectorAll('.nav-tab');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      var view = this.getAttribute('data-view');
+      switchView(view);
+    });
+  });
+}
+
+function switchView(view) {
+  currentView = view;
+
+  // Update tab styles
+  document.querySelectorAll('.nav-tab').forEach(function(t) {
+    t.classList.toggle('active', t.getAttribute('data-view') === view);
+  });
+
+  // Show/hide views
+  document.getElementById('catalogView').style.display = view === 'catalog' ? '' : 'none';
+  document.getElementById('teamDirectoryView').style.display = view === 'team-directory' ? '' : 'none';
+
+  // Update add button
+  var addBtn = document.getElementById('addBtn');
+  addBtn.style.display = '';
+  if (view === 'catalog') {
+    addBtn.textContent = '+ Add Resource';
+    addBtn.onclick = function() { openCatalogModal(null); };
+  } else {
+    addBtn.style.display = 'none'; // Team directory uses its own add button
+  }
+
+  // Load team directory data on first visit
+  if (view === 'team-directory' && !tdData[tdCurrentTab]) {
+    loadTeamDirectoryTab(tdCurrentTab);
+  }
+}
+
+// ─── Catalog: Data Loading ──────────────────────────────────────────
+function loadCatalogData() {
+  showLoading(true);
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success) {
+        catalogData = result.data.rows;
+        loadFilterOptions();
+      } else {
+        showMessage('Error loading catalog: ' + result.error, 'error');
+        showLoading(false);
+      }
+    })
+    .withFailureHandler(function(err) {
+      showMessage('Failed to load catalog data.', 'error');
+      showLoading(false);
+    })
+    .getSheetData('Catalog');
+}
+
+function loadFilterOptions() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      showLoading(false);
+      document.getElementById('catalogView').style.display = '';
+      if (result.success) {
+        filterOptions = result.data;
+        populateFilterDropdowns();
+        renderCatalogCards();
+      }
+    })
+    .withFailureHandler(function(err) {
+      showLoading(false);
+      document.getElementById('catalogView').style.display = '';
+      renderCatalogCards();
+    })
+    .getFilterOptions('Catalog');
+}
+
+// ─── Catalog: Filters ───────────────────────────────────────────────
+function setupCatalogFilters() {
+  // Debounced search
+  var searchTimer;
+  document.getElementById('filterSearch').addEventListener('input', function() {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(renderCatalogCards, 200);
+  });
+
+  // Dropdown change handlers
+  ['filterFunctionArea', 'filterComponent', 'filterStatus', 'filterResourceType', 'filterScope']
+    .forEach(function(id) {
+      document.getElementById(id).addEventListener('change', renderCatalogCards);
+    });
+
+  // Clear filters
+  document.getElementById('clearFilters').addEventListener('click', function() {
+    document.getElementById('filterSearch').value = '';
+    document.getElementById('filterFunctionArea').value = '';
+    document.getElementById('filterComponent').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterResourceType').value = '';
+    document.getElementById('filterScope').value = '';
+    renderCatalogCards();
+  });
+}
+
+function populateFilterDropdowns() {
+  var mapping = {
+    'filterFunctionArea': 'Function Area',
+    'filterComponent': 'Component',
+    'filterStatus': 'Status',
+    'filterResourceType': 'Resource Type',
+    'filterScope': 'Scope'
+  };
+
+  for (var selectId in mapping) {
+    var colName = mapping[selectId];
+    var select = document.getElementById(selectId);
+    var values = filterOptions[colName] || [];
+    // Keep the "All" option, add the rest
+    select.innerHTML = '<option value="">All</option>';
+    values.forEach(function(v) {
+      var opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      select.appendChild(opt);
+    });
+  }
+}
+
+function getFilteredCatalog() {
+  var search = document.getElementById('filterSearch').value.toLowerCase().trim();
+  var fArea = document.getElementById('filterFunctionArea').value;
+  var fComp = document.getElementById('filterComponent').value;
+  var fStatus = document.getElementById('filterStatus').value;
+  var fType = document.getElementById('filterResourceType').value;
+  var fScope = document.getElementById('filterScope').value;
+
+  return catalogData.filter(function(row) {
+    // Text search across title and summary
+    if (search) {
+      var title = (row[CATALOG_COLS.title] || '').toLowerCase();
+      var summary = (row[CATALOG_COLS.summary] || '').toLowerCase();
+      if (title.indexOf(search) === -1 && summary.indexOf(search) === -1) return false;
+    }
+
+    // Multi-value field matching (semicolon-separated)
+    if (fArea && !multiValueMatch(row[CATALOG_COLS.functionArea], fArea)) return false;
+    if (fComp && !multiValueMatch(row[CATALOG_COLS.component], fComp)) return false;
+
+    // Exact match fields
+    if (fStatus && row[CATALOG_COLS.status] !== fStatus) return false;
+    if (fType && row[CATALOG_COLS.resourceType] !== fType) return false;
+    if (fScope && row[CATALOG_COLS.scope] !== fScope) return false;
+
+    return true;
+  });
+}
+
+function multiValueMatch(cellValue, filterValue) {
+  if (!cellValue) return false;
+  var parts = cellValue.toString().split(';');
+  for (var i = 0; i < parts.length; i++) {
+    if (parts[i].trim() === filterValue) return true;
+  }
+  return false;
+}
+
+// ─── Catalog: Card Rendering ────────────────────────────────────────
+function renderCatalogCards() {
+  var filtered = getFilteredCatalog();
+  var grid = document.getElementById('cardGrid');
+  var empty = document.getElementById('catalogEmpty');
+  var countEl = document.getElementById('itemCount');
+
+  countEl.textContent = filtered.length + ' of ' + catalogData.length + ' items';
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  grid.innerHTML = filtered.map(function(row) {
+    var status = row[CATALOG_COLS.status] || '';
+    var statusClass = 'badge-status-' + status.toLowerCase().replace(/\s+/g, '-');
+    var resourceType = row[CATALOG_COLS.resourceType] || '';
+    var title = escapeHtml(row[CATALOG_COLS.title] || 'Untitled');
+    var summary = escapeHtml(row[CATALOG_COLS.summary] || '');
+    var owner = escapeHtml(row[CATALOG_COLS.owner] || '');
+    var link = row[CATALOG_COLS.link] || '';
+    var component = escapeHtml(row[CATALOG_COLS.component] || '');
+    var functionArea = escapeHtml(row[CATALOG_COLS.functionArea] || '');
+    var rowIndex = row._rowIndex;
+
+    var linkBtn = '';
+    if (link) {
+      linkBtn = '<a class="card-link-btn" href="' + escapeHtml(link) + '" target="_blank" rel="noopener" onclick="event.stopPropagation();">Open &rarr;</a>';
+    }
+
+    return '<div class="card" onclick="openCatalogModal(' + rowIndex + ')">' +
+      '<div class="card-header">' +
+        '<span class="badge badge-type">' + escapeHtml(resourceType) + '</span>' +
+        '<span class="badge ' + statusClass + '">' + escapeHtml(status) + '</span>' +
+      '</div>' +
+      '<div class="card-title">' + title + '</div>' +
+      '<div class="card-summary">' + summary + '</div>' +
+      '<div class="card-meta">' +
+        (owner ? '<span class="card-meta-item">' + owner + '</span>' : '') +
+        (component ? '<span class="card-meta-item">&middot; ' + component + '</span>' : '') +
+        linkBtn +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ─── Catalog: Modal (Add/Edit) ──────────────────────────────────────
+function setupCatalogModal() {
+  document.getElementById('catalogModalClose').addEventListener('click', closeCatalogModal);
+  document.getElementById('catalogModalBackdrop').addEventListener('click', closeCatalogModal);
+  document.getElementById('catalogCancelBtn').addEventListener('click', closeCatalogModal);
+  document.getElementById('catalogSaveBtn').addEventListener('click', saveCatalogRecord);
+  document.getElementById('catalogDeleteBtn').addEventListener('click', function() {
+    var rowIndex = parseInt(document.getElementById('formRowIndex').value);
+    confirmAction('Delete Resource', 'Are you sure you want to delete this resource? This cannot be undone.', function() {
+      deleteCatalogRecord(rowIndex);
+    });
+  });
+
+  // Close on Escape
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      closeCatalogModal();
+      closeConfirmDialog();
+    }
+  });
+}
+
+function openCatalogModal(rowIndex) {
+  var modal = document.getElementById('catalogModal');
+  var titleEl = document.getElementById('catalogFormTitle');
+  var deleteBtn = document.getElementById('catalogDeleteBtn');
+
+  if (rowIndex === null) {
+    // Add mode
+    titleEl.textContent = 'Add Resource';
+    deleteBtn.style.display = 'none';
+    clearCatalogForm();
+  } else {
+    // Edit mode — find the row
+    titleEl.textContent = 'Edit Resource';
+    deleteBtn.style.display = '';
+    var row = catalogData.find(function(r) { return r._rowIndex === rowIndex; });
+    if (row) populateCatalogForm(row);
+  }
+
+  modal.style.display = '';
+  document.getElementById('formTitle').focus();
+}
+
+function closeCatalogModal() {
+  document.getElementById('catalogModal').style.display = 'none';
+}
+
+function clearCatalogForm() {
+  document.getElementById('formRowIndex').value = '';
+  document.getElementById('formTitle').value = '';
+  document.getElementById('formResourceType').value = '';
+  document.getElementById('formFunctionArea').value = '';
+  document.getElementById('formComponent').value = '';
+  document.getElementById('formSystemOfRecord').value = '';
+  document.getElementById('formLink').value = '';
+  document.getElementById('formOwner').value = '';
+  document.getElementById('formStatus').value = '';
+  document.getElementById('formLastReviewed').value = '';
+  document.getElementById('formReviewCadence').value = '';
+  document.getElementById('formSummary').value = '';
+  document.getElementById('formScope').value = '';
+}
+
+function populateCatalogForm(row) {
+  document.getElementById('formRowIndex').value = row._rowIndex;
+  document.getElementById('formTitle').value = row[CATALOG_COLS.title] || '';
+  document.getElementById('formResourceType').value = row[CATALOG_COLS.resourceType] || '';
+  document.getElementById('formFunctionArea').value = row[CATALOG_COLS.functionArea] || '';
+  document.getElementById('formComponent').value = row[CATALOG_COLS.component] || '';
+  document.getElementById('formSystemOfRecord').value = row[CATALOG_COLS.systemOfRecord] || '';
+  document.getElementById('formLink').value = row[CATALOG_COLS.link] || '';
+  document.getElementById('formOwner').value = row[CATALOG_COLS.owner] || '';
+  document.getElementById('formStatus').value = row[CATALOG_COLS.status] || '';
+  document.getElementById('formLastReviewed').value = row[CATALOG_COLS.lastReviewed] || '';
+  document.getElementById('formReviewCadence').value = row[CATALOG_COLS.reviewCadence] || '';
+  document.getElementById('formSummary').value = row[CATALOG_COLS.summary] || '';
+  document.getElementById('formScope').value = row[CATALOG_COLS.scope] || '';
+}
+
+function getCatalogFormData() {
+  var data = {};
+  data[CATALOG_COLS.title] = document.getElementById('formTitle').value.trim();
+  data[CATALOG_COLS.resourceType] = document.getElementById('formResourceType').value;
+  data[CATALOG_COLS.functionArea] = document.getElementById('formFunctionArea').value.trim();
+  data[CATALOG_COLS.component] = document.getElementById('formComponent').value.trim();
+  data[CATALOG_COLS.systemOfRecord] = document.getElementById('formSystemOfRecord').value;
+  data[CATALOG_COLS.link] = document.getElementById('formLink').value.trim();
+  data[CATALOG_COLS.owner] = document.getElementById('formOwner').value.trim();
+  data[CATALOG_COLS.status] = document.getElementById('formStatus').value;
+  data[CATALOG_COLS.lastReviewed] = document.getElementById('formLastReviewed').value;
+  data[CATALOG_COLS.reviewCadence] = document.getElementById('formReviewCadence').value.trim();
+  data[CATALOG_COLS.summary] = document.getElementById('formSummary').value.trim();
+  data[CATALOG_COLS.scope] = document.getElementById('formScope').value;
+  return data;
+}
+
+function saveCatalogRecord() {
+  var formData = getCatalogFormData();
+
+  // Validate required fields
+  if (!formData[CATALOG_COLS.title]) {
+    showMessage('Title is required.', 'error');
+    return;
+  }
+  if (!formData[CATALOG_COLS.resourceType]) {
+    showMessage('Resource Type is required.', 'error');
+    return;
+  }
+  if (!formData[CATALOG_COLS.status]) {
+    showMessage('Status is required.', 'error');
+    return;
+  }
+
+  var rowIndex = document.getElementById('formRowIndex').value;
+  var saveBtn = document.getElementById('catalogSaveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+
+  if (rowIndex) {
+    // Update existing
+    google.script.run
+      .withSuccessHandler(function(result) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+        if (result.success) {
+          showMessage('Resource updated.', 'success');
+          closeCatalogModal();
+          loadCatalogData();
+        } else {
+          showMessage('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(err) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+        showMessage('Failed to save.', 'error');
+      })
+      .updateRow('Catalog', parseInt(rowIndex), formData);
+  } else {
+    // Add new
+    google.script.run
+      .withSuccessHandler(function(result) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+        if (result.success) {
+          showMessage('Resource added.', 'success');
+          closeCatalogModal();
+          loadCatalogData();
+        } else {
+          showMessage('Error: ' + result.error, 'error');
+        }
+      })
+      .withFailureHandler(function(err) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+        showMessage('Failed to save.', 'error');
+      })
+      .addRow('Catalog', formData);
+  }
+}
+
+function deleteCatalogRecord(rowIndex) {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success) {
+        showMessage('Resource deleted.', 'success');
+        closeCatalogModal();
+        loadCatalogData();
+      } else {
+        showMessage('Error: ' + result.error, 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      showMessage('Failed to delete.', 'error');
+    })
+    .deleteRow('Catalog', rowIndex);
+}
+
+// ─── Team Directory ─────────────────────────────────────────────────
+function setupTeamDirectory() {
+  // Tab clicks
+  document.getElementById('tdTabs').addEventListener('click', function(e) {
+    var tab = e.target.closest('.td-tab');
+    if (!tab) return;
+    var tabName = tab.getAttribute('data-tab');
+    tdCurrentTab = tabName;
+
+    document.querySelectorAll('.td-tab').forEach(function(t) {
+      t.classList.toggle('active', t.getAttribute('data-tab') === tabName);
+    });
+
+    if (tdData[tabName]) {
+      renderTeamDirectoryTable(tabName);
+    } else {
+      loadTeamDirectoryTab(tabName);
+    }
+  });
+
+  // Add row
+  document.getElementById('tdAddRow').addEventListener('click', function() {
+    addTeamDirectoryRow();
+  });
+
+  // Delete selected row
+  document.getElementById('tdDeleteRow').addEventListener('click', function() {
+    if (tdSelectedRow === null) {
+      showMessage('Select a row first.', 'error');
+      return;
+    }
+    confirmAction('Delete Row', 'Are you sure you want to delete this row?', function() {
+      deleteTeamDirectoryRow(tdSelectedRow);
+    });
+  });
+}
+
+function loadTeamDirectoryTab(tabName) {
+  var container = document.getElementById('tdTableContainer');
+  container.innerHTML = '<div class="loading-overlay"><div class="loading-spinner"></div><p>Loading...</p></div>';
+  document.getElementById('tdEmpty').style.display = 'none';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success) {
+        tdData[tabName] = result.data;
+        renderTeamDirectoryTable(tabName);
+      } else {
+        container.innerHTML = '';
+        showMessage('Error loading ' + tabName + ': ' + result.error, 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      container.innerHTML = '';
+      showMessage('Failed to load ' + tabName + '.', 'error');
+    })
+    .getSheetData(tabName);
+}
+
+function renderTeamDirectoryTable(tabName) {
+  var data = tdData[tabName];
+  var container = document.getElementById('tdTableContainer');
+  var empty = document.getElementById('tdEmpty');
+  tdSelectedRow = null;
+
+  if (!data || data.rows.length === 0) {
+    container.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+
+  var html = '<table class="data-table">';
+  html += '<thead><tr>';
+  data.headers.forEach(function(h) {
+    html += '<th>' + escapeHtml(h) + '</th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  data.rows.forEach(function(row) {
+    html += '<tr data-row-index="' + row._rowIndex + '" onclick="selectTdRow(this, ' + row._rowIndex + ')">';
+    data.headers.forEach(function(h) {
+      var val = row[h] || '';
+      html += '<td class="editable" ondblclick="startInlineEdit(this, \'' + escapeAttr(tabName) + '\', ' + row._rowIndex + ', \'' + escapeAttr(h) + '\')">' + escapeHtml(val) + '</td>';
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function selectTdRow(tr, rowIndex) {
+  // Deselect previous
+  var prev = document.querySelector('.data-table tr.selected');
+  if (prev) prev.classList.remove('selected');
+
+  tr.classList.add('selected');
+  tdSelectedRow = rowIndex;
+}
+
+function startInlineEdit(td, tabName, rowIndex, colName) {
+  // Don't start if already editing
+  if (td.querySelector('input')) return;
+
+  var currentValue = td.textContent;
+  var input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentValue;
+
+  td.textContent = '';
+  td.appendChild(input);
+  input.focus();
+  input.select();
+
+  function save() {
+    var newValue = input.value;
+    td.textContent = newValue;
+
+    if (newValue !== currentValue) {
+      // Build the full row data with the updated value
+      var row = tdData[tabName].rows.find(function(r) { return r._rowIndex === rowIndex; });
+      if (row) {
+        row[colName] = newValue;
+        var rowData = {};
+        tdData[tabName].headers.forEach(function(h) {
+          rowData[h] = row[h] || '';
+        });
+
+        google.script.run
+          .withSuccessHandler(function(result) {
+            if (!result.success) {
+              showMessage('Error saving: ' + result.error, 'error');
+              td.textContent = currentValue;
+              row[colName] = currentValue;
+            }
+          })
+          .withFailureHandler(function(err) {
+            showMessage('Failed to save cell.', 'error');
+            td.textContent = currentValue;
+            row[colName] = currentValue;
+          })
+          .updateRow(tabName, rowIndex, rowData);
+      }
+    }
+  }
+
+  input.addEventListener('blur', save);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') { td.textContent = currentValue; }
+  });
+}
+
+function addTeamDirectoryRow() {
+  var data = tdData[tdCurrentTab];
+  if (!data) return;
+
+  var newRow = {};
+  data.headers.forEach(function(h) { newRow[h] = ''; });
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success) {
+        showMessage('Row added.', 'success');
+        loadTeamDirectoryTab(tdCurrentTab);
+      } else {
+        showMessage('Error: ' + result.error, 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      showMessage('Failed to add row.', 'error');
+    })
+    .addRow(tdCurrentTab, newRow);
+}
+
+function deleteTeamDirectoryRow(rowIndex) {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success) {
+        showMessage('Row deleted.', 'success');
+        tdSelectedRow = null;
+        loadTeamDirectoryTab(tdCurrentTab);
+      } else {
+        showMessage('Error: ' + result.error, 'error');
+      }
+    })
+    .withFailureHandler(function(err) {
+      showMessage('Failed to delete row.', 'error');
+    })
+    .deleteRow(tdCurrentTab, rowIndex);
+}
+
+// ─── Confirm Dialog ─────────────────────────────────────────────────
+var confirmCallback = null;
+
+function setupConfirmDialog() {
+  document.getElementById('confirmCancel').addEventListener('click', closeConfirmDialog);
+  document.getElementById('confirmOk').addEventListener('click', function() {
+    closeConfirmDialog();
+    if (confirmCallback) confirmCallback();
+  });
+}
+
+function confirmAction(title, message, callback) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMessage').textContent = message;
+  document.getElementById('confirmDialog').style.display = '';
+  confirmCallback = callback;
+}
+
+function closeConfirmDialog() {
+  document.getElementById('confirmDialog').style.display = 'none';
+  confirmCallback = null;
+}
+
+// ─── Utilities ──────────────────────────────────────────────────────
+function showLoading(show) {
+  document.getElementById('loadingOverlay').style.display = show ? '' : 'none';
+}
+
+function showMessage(text, type) {
+  var banner = document.getElementById('messageBanner');
+  banner.textContent = text;
+  banner.className = 'message-banner ' + (type || 'success');
+  banner.style.display = '';
+
+  setTimeout(function() {
+    banner.style.display = 'none';
+  }, 3000);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function escapeAttr(str) {
+  return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+</script>
