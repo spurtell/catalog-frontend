@@ -78,6 +78,19 @@ function switchView(view) {
   }
 }
 
+function navigateToTab(tabName) {
+  switchView('team-directory');
+  tdCurrentTab = tabName;
+  document.querySelectorAll('.td-tab').forEach(function(t) {
+    t.classList.toggle('active', t.getAttribute('data-tab') === tabName);
+  });
+  if (tdData[tabName]) {
+    renderTeamDirectoryTable(tabName);
+  } else {
+    loadTeamDirectoryTab(tabName);
+  }
+}
+
 // ─── Catalog: Data Loading ──────────────────────────────────────────
 function loadCatalogData() {
   showLoading(true);
@@ -235,7 +248,12 @@ function renderCatalogCards() {
 
     var linkBtn = '';
     if (link) {
-      linkBtn = '<a class="card-link-btn" href="' + escapeHtml(link) + '" target="_blank" rel="noopener" onclick="event.stopPropagation();">Open &rarr;</a>';
+      if (link.indexOf('#team-directory:') === 0) {
+        var tabName = link.substring('#team-directory:'.length);
+        linkBtn = '<button class="card-link-btn" onclick="event.stopPropagation(); navigateToTab(\'' + escapeAttr(tabName) + '\');">View &rarr;</button>';
+      } else {
+        linkBtn = '<a class="card-link-btn" href="' + escapeHtml(link) + '" target="_blank" rel="noopener" onclick="event.stopPropagation();">Open &rarr;</a>';
+      }
     }
 
     return '<div class="card" onclick="openCatalogModal(' + rowIndex + ')">' +
