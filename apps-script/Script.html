@@ -228,10 +228,9 @@ function renderCatalogCards() {
     var resourceType = row[CATALOG_COLS.resourceType] || '';
     var title = escapeHtml(row[CATALOG_COLS.title] || 'Untitled');
     var summary = escapeHtml(row[CATALOG_COLS.summary] || '');
-    var owner = escapeHtml(row[CATALOG_COLS.owner] || '');
     var link = row[CATALOG_COLS.link] || '';
     var component = escapeHtml(row[CATALOG_COLS.component] || '');
-    var functionArea = escapeHtml(row[CATALOG_COLS.functionArea] || '');
+    var systemOfRecord = escapeHtml(row[CATALOG_COLS.systemOfRecord] || '');
     var rowIndex = row._rowIndex;
 
     var linkBtn = '';
@@ -247,8 +246,8 @@ function renderCatalogCards() {
       '<div class="card-title">' + title + '</div>' +
       '<div class="card-summary">' + summary + '</div>' +
       '<div class="card-meta">' +
-        (owner ? '<span class="card-meta-item">' + owner + '</span>' : '') +
-        (component ? '<span class="card-meta-item">&middot; ' + component + '</span>' : '') +
+        (component ? '<span class="card-meta-item">' + component + '</span>' : '') +
+        (systemOfRecord ? '<span class="card-meta-item">&middot; ' + systemOfRecord + '</span>' : '') +
         linkBtn +
       '</div>' +
     '</div>';
