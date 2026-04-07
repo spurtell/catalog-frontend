@@ -25,8 +25,7 @@ var CATALOG_COLS = {
   status: 'Status',
   lastReviewed: 'Last Reviewed',
   reviewCadence: 'Review Cadence',
-  summary: 'Short Summary',
-  scope: 'Scope'
+  summary: 'Short Summary'
 };
 
 // ─── Initialization ─────────────────────────────────────────────────
@@ -140,7 +139,7 @@ function setupCatalogFilters() {
   });
 
   // Dropdown change handlers
-  ['filterFunctionArea', 'filterComponent', 'filterStatus', 'filterResourceType', 'filterScope']
+  ['filterFunctionArea', 'filterComponent', 'filterStatus', 'filterResourceType']
     .forEach(function(id) {
       document.getElementById(id).addEventListener('change', renderCatalogCards);
     });
@@ -152,7 +151,6 @@ function setupCatalogFilters() {
     document.getElementById('filterComponent').value = '';
     document.getElementById('filterStatus').value = '';
     document.getElementById('filterResourceType').value = '';
-    document.getElementById('filterScope').value = '';
     renderCatalogCards();
   });
 }
@@ -162,8 +160,7 @@ function populateFilterDropdowns() {
     'filterFunctionArea': 'Function Area',
     'filterComponent': 'Component',
     'filterStatus': 'Status',
-    'filterResourceType': 'Resource Type',
-    'filterScope': 'Scope'
+    'filterResourceType': 'Resource Type'
   };
 
   for (var selectId in mapping) {
@@ -187,7 +184,6 @@ function getFilteredCatalog() {
   var fComp = document.getElementById('filterComponent').value;
   var fStatus = document.getElementById('filterStatus').value;
   var fType = document.getElementById('filterResourceType').value;
-  var fScope = document.getElementById('filterScope').value;
 
   return catalogData.filter(function(row) {
     // Text search across title and summary
@@ -204,7 +200,6 @@ function getFilteredCatalog() {
     // Exact match fields
     if (fStatus && row[CATALOG_COLS.status] !== fStatus) return false;
     if (fType && row[CATALOG_COLS.resourceType] !== fType) return false;
-    if (fScope && row[CATALOG_COLS.scope] !== fScope) return false;
 
     return true;
   });
@@ -333,7 +328,6 @@ function clearCatalogForm() {
   document.getElementById('formLastReviewed').value = '';
   document.getElementById('formReviewCadence').value = '';
   document.getElementById('formSummary').value = '';
-  document.getElementById('formScope').value = '';
 }
 
 function populateCatalogForm(row) {
@@ -349,7 +343,6 @@ function populateCatalogForm(row) {
   document.getElementById('formLastReviewed').value = row[CATALOG_COLS.lastReviewed] || '';
   document.getElementById('formReviewCadence').value = row[CATALOG_COLS.reviewCadence] || '';
   document.getElementById('formSummary').value = row[CATALOG_COLS.summary] || '';
-  document.getElementById('formScope').value = row[CATALOG_COLS.scope] || '';
 }
 
 function getCatalogFormData() {
@@ -365,7 +358,6 @@ function getCatalogFormData() {
   data[CATALOG_COLS.lastReviewed] = document.getElementById('formLastReviewed').value;
   data[CATALOG_COLS.reviewCadence] = document.getElementById('formReviewCadence').value.trim();
   data[CATALOG_COLS.summary] = document.getElementById('formSummary').value.trim();
-  data[CATALOG_COLS.scope] = document.getElementById('formScope').value;
   return data;
 }
 

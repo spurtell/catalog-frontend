@@ -52,13 +52,12 @@ apps-script/
 
 ## Data Model
 
-### Catalog (12 columns)
-Title, Resource Type, Function Area, Component, System of Record, Link, Owner/DRI, Status, Last Reviewed, Review Cadence, Short Summary, Scope
+### Catalog (11 columns)
+Title, Resource Type, Function Area, Component, System of Record, Link, Owner/DRI, Status, Last Reviewed, Review Cadence, Short Summary
 
 Key filter dimensions:
 - **Resource Type**: Reference, Process, How-To, Playbook, Policy, Template
 - **Status**: Current, Needs Review, Gap (color-coded: green, amber, red)
-- **Scope**: Org-Wide, Per-Component
 
 ### Team Directory (7 sub-tables)
 Triad Map, PM Coverage, Guilds, Key Meetings, Slack Channels, Slack Groups, Mailing Lists
