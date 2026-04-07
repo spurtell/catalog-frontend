@@ -11,7 +11,7 @@ A browsable resource catalog and team directory for the ACM (Advanced Cluster Ma
 
 ## Architecture
 
-- **Backend**: Google Sheets (one Sheet, 8 tabs — Catalog + 7 Team Directory tables)
+- **Backend**: Google Sheets (one Sheet, 9 tabs — Catalog + Components reference + 7 Team Directory tables)
 - **Frontend**: Google Apps Script HTML Service (served as a web app)
 - **Code location**: `apps-script/` directory — manually copied to the Apps Script editor for deployment
 - **Auth**: Google Workspace (Sheet sharing controls access)
@@ -43,7 +43,7 @@ apps-script/
 
 ## Deployment
 
-1. Create a Google Sheet with tabs: Catalog, Triad Map, PM Coverage, Guilds, Key Meetings, Slack Channels, Slack Groups, Mailing Lists
+1. Create a Google Sheet with tabs: Catalog, Components, Triad Map, PM Coverage, Guilds, Key Meetings, Slack Channels, Slack Groups, Mailing Lists
 2. Import CSV data into the Catalog tab
 3. In the Sheet: Extensions > Apps Script
 4. Copy each file from `apps-script/` into the Apps Script editor
@@ -59,8 +59,16 @@ Key filter dimensions:
 - **Resource Type**: Reference, Process, How-To, Playbook, Policy, Template
 - **Status**: Current, Needs Review, Gap (color-coded: green, amber, red)
 
+### Components (reference table)
+The Components tab is the single source of truth for component names. It drives:
+- The Component multi-select dropdown in the Catalog add/edit form
+- The Component filter dropdown on the browse view
+- Validation warnings on catalog cards whose Component value doesn't match the list
+
+First column must be the component name. Additional columns (Description, JIRA Project, etc.) are optional.
+
 ### Team Directory (7 sub-tables)
-Triad Map, PM Coverage, Guilds, Key Meetings, Slack Channels, Slack Groups, Mailing Lists
+Triad Map, Components, Guilds, Key Meetings, Slack Channels, Slack Groups, Mailing Lists
 
 ## Reference
 

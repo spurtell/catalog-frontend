@@ -43,8 +43,17 @@
           <input type="text" id="formFunctionArea" placeholder="e.g., Build & CI/CD; Testing & Quality">
         </div>
         <div class="form-group">
-          <label for="formComponent">Component</label>
-          <input type="text" id="formComponent" placeholder="e.g., Console; Search">
+          <label>Component</label>
+          <div class="multiselect" id="componentMultiselect">
+            <button type="button" class="multiselect-toggle" id="componentToggle">
+              <span class="placeholder">Select components...</span>
+              <span class="arrow">&#9662;</span>
+            </button>
+            <div class="multiselect-dropdown" id="componentDropdown" style="display:none;">
+              <!-- Checkboxes populated by JS -->
+            </div>
+          </div>
+          <input type="hidden" id="formComponent">
         </div>
       </div>
 

@@ -6,6 +6,7 @@
 // ─── State ──────────────────────────────────────────────────────────
 var catalogData = [];        // All catalog rows from sheet
 var filterOptions = {};      // Unique values per column for dropdowns
+var componentsList = [];     // Valid component names from Components tab
 var currentView = 'catalog'; // 'catalog' | 'team-directory'
 
 // Team Directory state
@@ -93,6 +94,8 @@ function navigateToTab(tabName) {
 // ─── Catalog: Data Loading ──────────────────────────────────────────
 function loadCatalogData() {
   showLoading(true);
+  // Load components list in parallel with catalog data
+  loadComponentsList();
   google.script.run
     .withSuccessHandler(function(result) {
       if (result.success) {
@@ -108,6 +111,28 @@ function loadCatalogData() {
       showLoading(false);
     })
     .getSheetData('Catalog');
+}
+
+function loadComponentsList() {
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.success && result.data.rows.length > 0) {
+        // Use the first column (Component) as the list of valid names
+        var firstCol = result.data.headers[0];
+        componentsList = result.data.rows
+          .map(function(r) { return (r[firstCol] || '').trim(); })
+          .filter(function(v) { return v !== ''; })
+          .sort();
+        buildComponentMultiselect();
+        populateFilterDropdowns();
+        renderCatalogCards();
+      }
+    })
+    .withFailureHandler(function() {
+      // Components tab may not exist yet — degrade gracefully
+      componentsList = [];
+    })
+    .getSheetData('Components');
 }
 
 function loadFilterOptions() {
@@ -166,7 +191,10 @@ function populateFilterDropdowns() {
   for (var selectId in mapping) {
     var colName = mapping[selectId];
     var select = document.getElementById(selectId);
-    var values = filterOptions[colName] || [];
+    // Use componentsList for the Component filter if available
+    var values = (selectId === 'filterComponent' && componentsList.length > 0)
+      ? componentsList
+      : (filterOptions[colName] || []);
     // Keep the "All" option, add the rest
     select.innerHTML = '<option value="">All</option>';
     values.forEach(function(v) {
@@ -214,6 +242,81 @@ function multiValueMatch(cellValue, filterValue) {
   return false;
 }
 
+// ─── Catalog: Component Multi-select ────────────────────────────────
+function buildComponentMultiselect() {
+  var dropdown = document.getElementById('componentDropdown');
+  if (!dropdown) return;
+  dropdown.innerHTML = '';
+  componentsList.forEach(function(name) {
+    var label = document.createElement('label');
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = name;
+    cb.addEventListener('change', updateComponentHidden);
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(' ' + name));
+    dropdown.appendChild(label);
+  });
+}
+
+function setupComponentMultiselect() {
+  var toggle = document.getElementById('componentToggle');
+  var dropdown = document.getElementById('componentDropdown');
+
+  toggle.addEventListener('click', function(e) {
+    e.preventDefault();
+    var open = dropdown.style.display !== 'none';
+    dropdown.style.display = open ? 'none' : '';
+  });
+
+  // Close when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#componentMultiselect')) {
+      dropdown.style.display = 'none';
+    }
+  });
+}
+
+function updateComponentHidden() {
+  var checks = document.querySelectorAll('#componentDropdown input[type="checkbox"]');
+  var selected = [];
+  checks.forEach(function(cb) { if (cb.checked) selected.push(cb.value); });
+  document.getElementById('formComponent').value = selected.join('; ');
+  // Update toggle label
+  var toggle = document.getElementById('componentToggle');
+  if (selected.length === 0) {
+    toggle.innerHTML = '<span class="placeholder">Select components...</span><span class="arrow">&#9662;</span>';
+  } else {
+    toggle.innerHTML = escapeHtml(selected.join('; ')) + '<span class="arrow">&#9662;</span>';
+  }
+}
+
+function setComponentMultiselectValues(semicolonStr) {
+  var vals = (semicolonStr || '').split(';').map(function(s) { return s.trim(); }).filter(Boolean);
+  var checks = document.querySelectorAll('#componentDropdown input[type="checkbox"]');
+  checks.forEach(function(cb) {
+    cb.checked = vals.indexOf(cb.value) !== -1;
+  });
+  // Update toggle label
+  var toggle = document.getElementById('componentToggle');
+  if (vals.length === 0 || (vals.length === 1 && vals[0] === '')) {
+    toggle.innerHTML = '<span class="placeholder">Select components...</span><span class="arrow">&#9662;</span>';
+  } else {
+    toggle.innerHTML = escapeHtml(vals.join('; ')) + '<span class="arrow">&#9662;</span>';
+  }
+  document.getElementById('formComponent').value = semicolonStr || '';
+}
+
+function isComponentValid(componentStr) {
+  if (!componentStr || componentsList.length === 0) return true; // no list = no validation
+  var parts = componentStr.toString().split(';');
+  for (var i = 0; i < parts.length; i++) {
+    var part = parts[i].trim();
+    if (part && componentsList.indexOf(part) === -1) return false;
+  }
+  return true;
+}
+
 // ─── Catalog: Card Rendering ────────────────────────────────────────
 function renderCatalogCards() {
   var filtered = getFilteredCatalog();
@@ -251,9 +354,16 @@ function renderCatalogCards() {
       }
     }
 
+    var componentWarning = '';
+    var rawComponent = row[CATALOG_COLS.component] || '';
+    if (!isComponentValid(rawComponent)) {
+      componentWarning = '<span class="badge badge-component-warning" title="Component not in Components list">Update Component</span>';
+    }
+
     return '<div class="card" onclick="openCatalogModal(' + rowIndex + ')">' +
       '<div class="card-header">' +
         '<span class="badge badge-type">' + escapeHtml(resourceType) + '</span>' +
+        componentWarning +
         '<span class="badge ' + statusClass + '">' + escapeHtml(status) + '</span>' +
       '</div>' +
       '<div class="card-title">' + title + '</div>' +
@@ -273,6 +383,7 @@ function setupCatalogModal() {
   document.getElementById('catalogModalBackdrop').addEventListener('click', closeCatalogModal);
   document.getElementById('catalogCancelBtn').addEventListener('click', closeCatalogModal);
   document.getElementById('catalogSaveBtn').addEventListener('click', saveCatalogRecord);
+  setupComponentMultiselect();
   document.getElementById('catalogDeleteBtn').addEventListener('click', function() {
     var rowIndex = parseInt(document.getElementById('formRowIndex').value);
     confirmAction('Delete Resource', 'Are you sure you want to delete this resource? This cannot be undone.', function() {
@@ -320,7 +431,7 @@ function clearCatalogForm() {
   document.getElementById('formTitle').value = '';
   document.getElementById('formResourceType').value = '';
   document.getElementById('formFunctionArea').value = '';
-  document.getElementById('formComponent').value = '';
+  setComponentMultiselectValues('');
   document.getElementById('formSystemOfRecord').value = '';
   document.getElementById('formLink').value = '';
   document.getElementById('formOwner').value = '';
@@ -335,7 +446,7 @@ function populateCatalogForm(row) {
   document.getElementById('formTitle').value = row[CATALOG_COLS.title] || '';
   document.getElementById('formResourceType').value = row[CATALOG_COLS.resourceType] || '';
   document.getElementById('formFunctionArea').value = row[CATALOG_COLS.functionArea] || '';
-  document.getElementById('formComponent').value = row[CATALOG_COLS.component] || '';
+  setComponentMultiselectValues(row[CATALOG_COLS.component] || '');
   document.getElementById('formSystemOfRecord').value = row[CATALOG_COLS.systemOfRecord] || '';
   document.getElementById('formLink').value = row[CATALOG_COLS.link] || '';
   document.getElementById('formOwner').value = row[CATALOG_COLS.owner] || '';
