@@ -133,9 +133,10 @@ function addRow(tabName, rowData) {
       newRow.push(value !== undefined && value !== null ? value : '');
     }
 
+    var newRowIndex = sheet.getLastRow() + 1;
     sheet.appendRow(newRow);
 
-    return { success: true, data: { message: 'Row added successfully' }, error: null };
+    return { success: true, data: { message: 'Row added successfully', rowIndex: newRowIndex }, error: null };
   } catch (error) {
     Logger.log('Error adding row to ' + tabName + ': ' + error.toString());
     return { success: false, data: null, error: error.toString() };

@@ -710,8 +710,12 @@ function startInlineEdit(td, tabName, rowIndex, colName) {
 }
 
 function addTeamDirectoryRow() {
-  var data = tdData[tdCurrentTab];
-  if (!data) return;
+  var tabName = tdCurrentTab;
+  var data = tdData[tabName];
+  if (!data) {
+    showMessage('Tab data not loaded. Try switching tabs first.', 'error');
+    return;
+  }
 
   var newRow = {};
   data.headers.forEach(function(h) { newRow[h] = ''; });
@@ -719,8 +723,13 @@ function addTeamDirectoryRow() {
   google.script.run
     .withSuccessHandler(function(result) {
       if (result.success) {
-        showMessage('Row added.', 'success');
-        loadTeamDirectoryTab(tdCurrentTab);
+        showMessage('Row added. Double-click cells to edit.', 'success');
+        // Add the row locally so it renders immediately
+        // (empty rows are invisible to getDataRange on reload)
+        var localRow = { _rowIndex: result.data.rowIndex };
+        data.headers.forEach(function(h) { localRow[h] = ''; });
+        data.rows.push(localRow);
+        renderTeamDirectoryTable(tabName);
       } else {
         showMessage('Error: ' + result.error, 'error');
       }
@@ -728,7 +737,7 @@ function addTeamDirectoryRow() {
     .withFailureHandler(function(err) {
       showMessage('Failed to add row.', 'error');
     })
-    .addRow(tdCurrentTab, newRow);
+    .addRow(tabName, newRow);
 }
 
 function deleteTeamDirectoryRow(rowIndex) {
