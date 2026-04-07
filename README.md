@@ -1,22 +1,22 @@
-# ACM Resource Catalog
+# Resource Catalog
 
-A browsable resource catalog and team directory for the ACM (Advanced Cluster Management) team. Built as a Google Apps Script web app backed by Google Sheets.
+A browsable resource catalog and team directory built as a Google Apps Script web app backed by Google Sheets.
 
 ## Features
 
-- **Browse**: Card grid with search and multi-dimensional filtering (Function Area, Component, Status, Type, Scope)
+- **Browse**: Card grid with search and multi-dimensional filtering (Function Area, Component, Status, Type)
 - **Edit**: Click any card to edit via modal form; add new resources via "+ Add Resource"
-- **Team Directory**: Tabbed view of Triad Map, Guilds, Key Meetings, Slack Channels, Slack Groups, and Mailing Lists with inline editing
-- **Red Hat branded**: Dark chrome header with light content, using official Red Hat color palette and typography
+- **Team Directory**: Tabbed view of team structure, guilds, meetings, channels, and mailing lists with inline editing
+- **Branded UI**: Dark chrome header with light content areas
 
 ## Setup
 
 ### 1. Create the Google Sheet
 
-Create a new Google Sheet with these tabs and headers in row 1:
+Create a new Google Sheet with these tabs. Add column headers in row 1 of each tab:
 
 **Catalog** tab:
-`Title`, `Resource Type`, `Function Area`, `Component`, `System of Record`, `Link`, `Owner/DRI`, `Status`, `Last Reviewed`, `Review Cadence`, `Short Summary`, `Scope`
+`Title`, `Resource Type`, `Function Area`, `Component`, `System of Record`, `Link`, `Owner/DRI`, `Status`, `Last Reviewed`, `Review Cadence`, `Short Summary`
 
 **Triad Map** tab: `#`, `PM`, `Eng Manager`, `Architect`, `Components`
 
@@ -30,12 +30,7 @@ Create a new Google Sheet with these tabs and headers in row 1:
 
 **Mailing Lists** tab: `List`, `Purpose`
 
-### 2. Import data
-
-- Import ``.local/ACM Catalog Records - Sheet1.csv`` into the **Catalog** tab (File > Import > Upload, then select "Replace current sheet")
-- Populate the Team Directory tabs from the [Team Directory Data](https://redhat.atlassian.net/wiki/spaces/clustermgmt/pages/383326410/Team+Directory+Data) Confluence page
-
-### 3. Create the Apps Script project
+### 2. Create the Apps Script project
 
 1. In your Google Sheet, go to **Extensions > Apps Script**
 2. Delete the default `Code.gs` content and replace with the contents of `apps-script/Code.gs`
@@ -50,7 +45,7 @@ Create a new Google Sheet with these tabs and headers in row 1:
      - `Styles` (from `apps-script/Styles.html`)
 4. In `SheetService.gs`, replace `YOUR_GOOGLE_SHEET_ID_HERE` with your Sheet ID (found in the Sheet URL: `https://docs.google.com/spreadsheets/d/SHEET_ID_HERE/edit`)
 
-### 4. Deploy
+### 3. Deploy
 
 1. Click **Deploy > New deployment**
 2. Select type: **Web app**
@@ -60,7 +55,7 @@ Create a new Google Sheet with these tabs and headers in row 1:
 4. Click **Deploy**
 5. Share the web app URL with your team
 
-### 5. Updating after code changes
+### 4. Updating after code changes
 
 1. Edit the files in the Apps Script editor (or copy updated files from this repo)
 2. Click **Deploy > Manage deployments**
@@ -80,12 +75,11 @@ apps-script/
   CatalogForm.html     # Add/edit modal form
   TeamDirectory.html   # Tabbed team directory tables
   Script.html          # Client-side JavaScript
-  Styles.html          # CSS (Red Hat branded)
+  Styles.html          # CSS styles
   appsscript.json      # Apps Script manifest
 ```
 
 ## Data notes
 
-- The `.local/` directory contains the original CSV data and is git-ignored (data may be sensitive)
 - Multi-value fields (Function Area, Component) use semicolons as separators
 - The app reads column headers dynamically from row 1 of each tab
