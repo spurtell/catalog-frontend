@@ -3,12 +3,33 @@
 <!-- Sub-table Tabs -->
 <div class="td-tabs" id="tdTabs">
   <button class="td-tab active" data-tab="Triad Map">Triad Map</button>
-  <button class="td-tab" data-tab="Components">Components</button>
   <button class="td-tab" data-tab="Guilds">Guilds</button>
   <button class="td-tab" data-tab="Key Meetings">Key Meetings</button>
   <button class="td-tab" data-tab="Slack Channels">Slack Channels</button>
   <button class="td-tab" data-tab="Slack Groups">Slack Groups</button>
   <button class="td-tab" data-tab="Mailing Lists">Mailing Lists</button>
+</div>
+
+<!-- Triad Map Filters (visible only on Triad Map tab) -->
+<div class="td-filter-bar" id="tdFilterBar" style="display:none;">
+  <div class="filter-row">
+    <div class="filter-group">
+      <label>PM</label>
+      <select id="tdFilterPM"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Eng Manager</label>
+      <select id="tdFilterEM"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Architect</label>
+      <select id="tdFilterArch"><option value="">All</option></select>
+    </div>
+    <div class="filter-actions">
+      <button class="btn btn-clear btn-small" id="tdClearFilters">Reset</button>
+      <span class="item-count" id="tdItemCount"></span>
+    </div>
+  </div>
 </div>
 
 <!-- Toolbar -->

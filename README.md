@@ -6,7 +6,8 @@ A browsable resource catalog and team directory built as a Google Apps Script we
 
 - **Browse**: Card grid with search and multi-dimensional filtering (Function Area, Component, Status, Type)
 - **Edit**: Click any card to edit via modal form; add new resources via "+ Add Resource"
-- **Team Directory**: Tabbed view of team structure, guilds, meetings, channels, and mailing lists with inline editing
+- **Team Directory**: Tabbed view of triads, guilds, meetings, channels, and mailing lists with inline editing
+- **Component validation**: Component dropdown populated from the Triad Map; cards flagged when components don't match
 - **Branded UI**: Dark chrome header with light content areas
 
 ## Setup
@@ -18,7 +19,7 @@ Create a new Google Sheet with these tabs. Add column headers in row 1 of each t
 **Catalog** tab:
 `Title`, `Resource Type`, `Function Area`, `Component`, `System of Record`, `Link`, `Owner/DRI`, `Status`, `Last Reviewed`, `Review Cadence`, `Short Summary`
 
-**Triad Map** tab: `#`, `PM`, `Eng Manager`, `Architect`, `Components`
+**Triad Map** tab: `#`, `PM`, `Eng Manager`, `Architect`, `Components` (comma-separated component names)
 
 **Guilds** tab: `Guild`, `Lead`, `Channel`
 
@@ -81,5 +82,6 @@ apps-script/
 
 ## Data notes
 
-- Multi-value fields (Function Area, Component) use semicolons as separators
+- Multi-value fields use semicolons as separators in the Catalog (Function Area, Component) and commas in the Triad Map (Components)
+- The Triad Map "Components" column is the source of truth for valid component names
 - The app reads column headers dynamically from row 1 of each tab

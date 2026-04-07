@@ -573,6 +573,15 @@ body {
 .td-tab:hover { color: var(--gray-90); }
 .td-tab.active { color: var(--gray-95); border-bottom-color: var(--rh-red); }
 
+.td-filter-bar {
+  background: white;
+  border: 1px solid var(--gray-20);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
 .td-toolbar {
   display: flex;
   gap: 0.5rem;
@@ -621,7 +630,8 @@ body {
 .data-table tr:last-child td { border-bottom: none; }
 .data-table tr:hover td { background: var(--gray-10); }
 
-.data-table td.editable { cursor: pointer; }
+.data-table td.editable { cursor: pointer; min-height: 2rem; }
+.data-table td.editable:empty::after { content: '\00a0'; } /* non-breaking space keeps empty cells clickable */
 .data-table td.editable:hover { background: #FEF0F0; }
 
 .data-table td input {

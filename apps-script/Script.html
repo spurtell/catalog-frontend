@@ -73,8 +73,11 @@ function switchView(view) {
   }
 
   // Load team directory data on first visit
-  if (view === 'team-directory' && !tdData[tdCurrentTab]) {
-    loadTeamDirectoryTab(tdCurrentTab);
+  if (view === 'team-directory') {
+    updateTriadFilterVisibility(tdCurrentTab);
+    if (!tdData[tdCurrentTab]) {
+      loadTeamDirectoryTab(tdCurrentTab);
+    }
   }
 }
 
@@ -84,6 +87,7 @@ function navigateToTab(tabName) {
   document.querySelectorAll('.td-tab').forEach(function(t) {
     t.classList.toggle('active', t.getAttribute('data-tab') === tabName);
   });
+  updateTriadFilterVisibility(tabName);
   if (tdData[tabName]) {
     renderTeamDirectoryTable(tabName);
   } else {
@@ -117,22 +121,25 @@ function loadComponentsList() {
   google.script.run
     .withSuccessHandler(function(result) {
       if (result.success && result.data.rows.length > 0) {
-        // Use the first column (Component) as the list of valid names
-        var firstCol = result.data.headers[0];
-        componentsList = result.data.rows
-          .map(function(r) { return (r[firstCol] || '').trim(); })
-          .filter(function(v) { return v !== ''; })
-          .sort();
+        // Extract unique component names from the Triad Map "Components" column
+        var uniqueSet = {};
+        result.data.rows.forEach(function(row) {
+          var val = (row['Components'] || '').toString();
+          val.split(',').forEach(function(part) {
+            var trimmed = part.trim();
+            if (trimmed) uniqueSet[trimmed] = true;
+          });
+        });
+        componentsList = Object.keys(uniqueSet).sort();
         buildComponentMultiselect();
         populateFilterDropdowns();
         renderCatalogCards();
       }
     })
     .withFailureHandler(function() {
-      // Components tab may not exist yet — degrade gracefully
       componentsList = [];
     })
-    .getSheetData('Components');
+    .getSheetData('Triad Map');
 }
 
 function loadFilterOptions() {
@@ -555,6 +562,9 @@ function deleteCatalogRecord(rowIndex) {
 }
 
 // ─── Team Directory ─────────────────────────────────────────────────
+var TRIAD_FILTER_COLS = ['PM', 'Eng Manager', 'Architect'];
+var TRIAD_FILTER_IDS = { 'PM': 'tdFilterPM', 'Eng Manager': 'tdFilterEM', 'Architect': 'tdFilterArch' };
+
 function setupTeamDirectory() {
   // Tab clicks
   document.getElementById('tdTabs').addEventListener('click', function(e) {
@@ -567,11 +577,28 @@ function setupTeamDirectory() {
       t.classList.toggle('active', t.getAttribute('data-tab') === tabName);
     });
 
+    updateTriadFilterVisibility(tabName);
+
     if (tdData[tabName]) {
       renderTeamDirectoryTable(tabName);
     } else {
       loadTeamDirectoryTab(tabName);
     }
+  });
+
+  // Triad Map filter change handlers
+  TRIAD_FILTER_COLS.forEach(function(col) {
+    document.getElementById(TRIAD_FILTER_IDS[col]).addEventListener('change', function() {
+      renderTeamDirectoryTable('Triad Map');
+    });
+  });
+
+  // Triad Map clear filters
+  document.getElementById('tdClearFilters').addEventListener('click', function() {
+    TRIAD_FILTER_COLS.forEach(function(col) {
+      document.getElementById(TRIAD_FILTER_IDS[col]).value = '';
+    });
+    renderTeamDirectoryTable('Triad Map');
   });
 
   // Add row
@@ -591,6 +618,52 @@ function setupTeamDirectory() {
   });
 }
 
+function updateTriadFilterVisibility(tabName) {
+  document.getElementById('tdFilterBar').style.display = tabName === 'Triad Map' ? '' : 'none';
+}
+
+function populateTriadFilters() {
+  var data = tdData['Triad Map'];
+  if (!data) return;
+
+  TRIAD_FILTER_COLS.forEach(function(col) {
+    var select = document.getElementById(TRIAD_FILTER_IDS[col]);
+    var current = select.value;
+    var uniqueSet = {};
+    data.rows.forEach(function(row) {
+      var val = (row[col] || '').trim();
+      if (val) uniqueSet[val] = true;
+    });
+    var values = Object.keys(uniqueSet).sort();
+    select.innerHTML = '<option value="">All</option>';
+    values.forEach(function(v) {
+      var opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = v;
+      select.appendChild(opt);
+    });
+    select.value = current; // preserve selection after repopulate
+  });
+}
+
+function getFilteredTriadRows() {
+  var data = tdData['Triad Map'];
+  if (!data) return [];
+
+  var filters = {};
+  TRIAD_FILTER_COLS.forEach(function(col) {
+    filters[col] = document.getElementById(TRIAD_FILTER_IDS[col]).value;
+  });
+
+  return data.rows.filter(function(row) {
+    for (var i = 0; i < TRIAD_FILTER_COLS.length; i++) {
+      var col = TRIAD_FILTER_COLS[i];
+      if (filters[col] && (row[col] || '') !== filters[col]) return false;
+    }
+    return true;
+  });
+}
+
 function loadTeamDirectoryTab(tabName) {
   var container = document.getElementById('tdTableContainer');
   container.innerHTML = '<div class="loading-overlay"><div class="loading-spinner"></div><p>Loading...</p></div>';
@@ -600,6 +673,7 @@ function loadTeamDirectoryTab(tabName) {
     .withSuccessHandler(function(result) {
       if (result.success) {
         tdData[tabName] = result.data;
+        if (tabName === 'Triad Map') populateTriadFilters();
         renderTeamDirectoryTable(tabName);
       } else {
         container.innerHTML = '';
@@ -625,6 +699,22 @@ function renderTeamDirectoryTable(tabName) {
     return;
   }
 
+  var rows = (tabName === 'Triad Map') ? getFilteredTriadRows() : data.rows;
+
+  // Update item count for Triad Map
+  var countEl = document.getElementById('tdItemCount');
+  if (tabName === 'Triad Map') {
+    countEl.textContent = rows.length + ' of ' + data.rows.length + ' rows';
+  } else {
+    countEl.textContent = '';
+  }
+
+  if (rows.length === 0) {
+    container.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+
   empty.style.display = 'none';
 
   var html = '<table class="data-table">';
@@ -634,7 +724,7 @@ function renderTeamDirectoryTable(tabName) {
   });
   html += '</tr></thead><tbody>';
 
-  data.rows.forEach(function(row) {
+  rows.forEach(function(row) {
     html += '<tr data-row-index="' + row._rowIndex + '" onclick="selectTdRow(this, ' + row._rowIndex + ')">';
     data.headers.forEach(function(h) {
       var val = row[h] || '';
@@ -723,13 +813,22 @@ function addTeamDirectoryRow() {
   google.script.run
     .withSuccessHandler(function(result) {
       if (result.success) {
-        showMessage('Row added. Double-click cells to edit.', 'success');
+        showMessage('Row added.', 'success');
         // Add the row locally so it renders immediately
         // (empty rows are invisible to getDataRange on reload)
         var localRow = { _rowIndex: result.data.rowIndex };
         data.headers.forEach(function(h) { localRow[h] = ''; });
         data.rows.push(localRow);
         renderTeamDirectoryTable(tabName);
+        // Select the new row and start editing the first cell
+        var newTr = document.querySelector('.data-table tr[data-row-index="' + localRow._rowIndex + '"]');
+        if (newTr) {
+          selectTdRow(newTr, localRow._rowIndex);
+          var firstTd = newTr.querySelector('td.editable');
+          if (firstTd) {
+            startInlineEdit(firstTd, tabName, localRow._rowIndex, data.headers[0]);
+          }
+        }
       } else {
         showMessage('Error: ' + result.error, 'error');
       }
