@@ -65,6 +65,62 @@ Create a new Google Sheet with these tabs. Add column headers in row 1 of each t
 5. Click **Deploy**
 6. Hard refresh the web app (Ctrl+Shift+R / Cmd+Shift+R)
 
+## Architecture
+
+```mermaid
+graph TB
+    subgraph "1. GitHub Repo"
+        direction TB
+        repo["catalog-frontend/apps-script/"]
+        gs1["Code.gs"]
+        gs2["SheetService.gs"]
+        html1["Index.html"]
+        html2["CatalogBrowse.html"]
+        html3["CatalogForm.html"]
+        html4["TeamDirectory.html"]
+        html5["Script.html"]
+        html6["Styles.html"]
+        repo --> gs1 & gs2 & html1 & html2 & html3 & html4 & html5 & html6
+    end
+
+    subgraph "2. Google Sheet"
+        direction TB
+        sheet["Google Sheets Workbook"]
+        tab1["Catalog tab\n(11 columns)"]
+        tab2["Triad Map tab"]
+        tab3["Guilds tab"]
+        tab4["Key Meetings tab"]
+        tab5["Slack Channels tab"]
+        tab6["Slack Groups tab"]
+        tab7["Mailing Lists tab"]
+        sheet --> tab1 & tab2 & tab3 & tab4 & tab5 & tab6 & tab7
+    end
+
+    subgraph "3. Apps Script Editor"
+        direction TB
+        editor["Extensions > Apps Script"]
+        config["appsscript.json\n(manifest)"]
+        deploy["Deploy > Web App\nExecute as: Me\nAccess: Anyone in org"]
+        editor --> config --> deploy
+    end
+
+    subgraph "4. Web App UI"
+        direction TB
+        shell["App Shell\n(Header + Nav Tabs)"]
+        browse["Catalog Browse\nFilter bar + Card grid"]
+        form["Catalog Form\nAdd / Edit modal"]
+        teamdir["Team Directory\n6 tabbed sub-tables"]
+        shell --> browse & form & teamdir
+    end
+
+    repo -- "manual copy" --> editor
+    editor -- "bound to" --> sheet
+    deploy -- "serves via\nHtmlService" --> shell
+    browse & form & teamdir -- "google.script.run\n{success, data, error}" --> gs2
+    gs2 -- "generic CRUD\n(any tab name)" --> sheet
+    tab2 -- "Components col\n(source of truth)" --> browse & form
+```
+
 ## File Structure
 
 ```
