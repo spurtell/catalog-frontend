@@ -31,6 +31,8 @@ Create a new Google Sheet with these tabs. Add column headers in row 1 of each t
 
 **Mailing Lists** tab: `List`, `Purpose`
 
+**Editors** tab (optional): `Email` — list of email addresses allowed to add/edit/delete. If this tab is missing or empty, all users have edit access.
+
 ### 2. Create the Apps Script project
 
 1. In your Google Sheet, go to **Extensions > Apps Script**

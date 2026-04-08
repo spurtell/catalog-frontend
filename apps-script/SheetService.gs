@@ -7,6 +7,30 @@
 const SHEET_ID = 'YOUR_GOOGLE_SHEET_ID_HERE';
 
 /**
+ * Check if the current user is an editor.
+ * Reads from the "Editors" tab (column A = email addresses).
+ * If the tab doesn't exist or is empty, all users have edit access.
+ * Throws an error if the user is not authorized for write operations.
+ */
+function requireEditor() {
+  const ss = getSpreadsheet();
+  const editorsSheet = ss.getSheetByName('Editors');
+  if (!editorsSheet) return; // no restrictions if tab doesn't exist
+  const lastRow = editorsSheet.getLastRow();
+  if (lastRow <= 1) return; // only header row or empty
+
+  const emails = editorsSheet.getRange(2, 1, lastRow - 1, 1).getValues()
+    .map(function(r) { return r[0].toString().trim().toLowerCase(); })
+    .filter(function(e) { return e !== ''; });
+  if (emails.length === 0) return;
+
+  const user = Session.getActiveUser().getEmail().toLowerCase();
+  if (emails.indexOf(user) === -1) {
+    throw new Error('You do not have edit access. Contact the app owner to request permissions.');
+  }
+}
+
+/**
  * Get the spreadsheet object
  * @return {Spreadsheet} The spreadsheet
  */
@@ -123,6 +147,7 @@ function getFilterOptions(tabName) {
  */
 function addRow(tabName, rowData) {
   try {
+    requireEditor();
     const sheet = getSheet(tabName);
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
       .map(function(h) { return h.toString().trim(); });
@@ -152,6 +177,7 @@ function addRow(tabName, rowData) {
  */
 function updateRow(tabName, rowIndex, rowData) {
   try {
+    requireEditor();
     const sheet = getSheet(tabName);
     const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
       .map(function(h) { return h.toString().trim(); });
@@ -179,6 +205,7 @@ function updateRow(tabName, rowIndex, rowData) {
  */
 function deleteRow(tabName, rowIndex) {
   try {
+    requireEditor();
     const sheet = getSheet(tabName);
     sheet.deleteRow(rowIndex);
 

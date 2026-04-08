@@ -11,7 +11,7 @@ A browsable resource catalog and team directory for the ACM (Advanced Cluster Ma
 
 ## Architecture
 
-- **Backend**: Google Sheets (one Sheet, 7 tabs — Catalog + 6 Team Directory tables)
+- **Backend**: Google Sheets (one Sheet, 7 data tabs + optional Editors tab for access control)
 - **Frontend**: Google Apps Script HTML Service (served as a web app)
 - **Code location**: `apps-script/` directory — manually copied to the Apps Script editor for deployment
 - **Auth**: Google Workspace (Sheet sharing controls access)
@@ -43,7 +43,7 @@ apps-script/
 
 ## Deployment
 
-1. Create a Google Sheet with tabs: Catalog, Triad Map, Guilds, Key Meetings, Slack Channels, Slack Groups, Mailing Lists
+1. Create a Google Sheet with tabs: Catalog, Triad Map, Guilds, Key Meetings, Slack Channels, Slack Groups, Mailing Lists, Editors (optional)
 2. Import CSV data into the Catalog tab
 3. In the Sheet: Extensions > Apps Script
 4. Copy each file from `apps-script/` into the Apps Script editor
