@@ -164,7 +164,7 @@ function addRow(tabName, rowData) {
     return { success: true, data: { message: 'Row added successfully', rowIndex: newRowIndex }, error: null };
   } catch (error) {
     Logger.log('Error adding row to ' + tabName + ': ' + error.toString());
-    return { success: false, data: null, error: error.toString() };
+    return { success: false, data: null, error: error.message || error.toString() };
   }
 }
 
@@ -193,7 +193,7 @@ function updateRow(tabName, rowIndex, rowData) {
     return { success: true, data: { message: 'Row updated successfully' }, error: null };
   } catch (error) {
     Logger.log('Error updating row in ' + tabName + ': ' + error.toString());
-    return { success: false, data: null, error: error.toString() };
+    return { success: false, data: null, error: error.message || error.toString() };
   }
 }
 
@@ -211,8 +211,8 @@ function deleteRow(tabName, rowIndex) {
 
     return { success: true, data: { message: 'Row deleted successfully' }, error: null };
   } catch (error) {
-    Logger.log('Error deleting row from ' + tabName + ': ' + error.toString());
-    return { success: false, data: null, error: error.toString() };
+    Logger.log('Error deleting row from ' + tabName + ': ' + error.message || error.toString());
+    return { success: false, data: null, error: error.message || error.toString() };
   }
 }
 
