@@ -1,0 +1,87 @@
+<!-- Catalog Add/Edit Modal Form -->
+<div class="modal-content">
+  <div class="modal-header">
+    <h2 id="catalogFormTitle">Add Resource</h2>
+    <button class="modal-close" id="catalogModalClose">&times;</button>
+  </div>
+  <div class="modal-body">
+    <form id="catalogForm">
+      <input type="hidden" id="formRowIndex">
+
+      <div class="form-group">
+        <label for="formName">Name <span class="required">*</span></label>
+        <input type="text" id="formName" required>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="formCategory">Category <span class="required">*</span></label>
+          <select id="formCategory" required>
+            <option value="">Select...</option>
+            <option value="Docs">Docs</option>
+            <option value="Code">Code</option>
+            <option value="Comms">Comms</option>
+            <option value="Data">Data</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="formType">Type <span class="required">*</span></label>
+          <select id="formType" required>
+            <option value="">Select...</option>
+            <option value="PRD">PRD</option>
+            <option value="Repo">Repo</option>
+            <option value="Slack">Slack</option>
+            <option value="Drive">Drive</option>
+            <option value="Jira">Jira</option>
+            <option value="NotebookLM">NotebookLM</option>
+            <option value="Deck">Deck</option>
+            <option value="Meeting">Meeting</option>
+            <option value="Wiki">Wiki</option>
+            <option value="Miro">Miro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="formUrl">URL <span class="required">*</span></label>
+        <input type="url" id="formUrl" placeholder="https://..." required>
+      </div>
+
+      <div class="form-group">
+        <label for="formDescription">Description</label>
+        <textarea id="formDescription" rows="2" placeholder="Brief description of this resource..."></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="formOwner">Owner</label>
+          <input type="text" id="formOwner" placeholder="e.g., Shawn P.">
+        </div>
+        <div class="form-group">
+          <label for="formStatus">Status <span class="required">*</span></label>
+          <select id="formStatus" required>
+            <option value="">Select...</option>
+            <option value="Active">Active</option>
+            <option value="Draft">Draft</option>
+            <option value="Archived">Archived</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="formTags">Tags</label>
+        <input type="text" id="formTags" placeholder="Comma-separated, e.g., onboarding, architecture">
+      </div>
+    </form>
+  </div>
+  <div class="modal-footer">
+    <div>
+      <button class="btn btn-danger" id="catalogDeleteBtn" style="display:none;">Delete</button>
+    </div>
+    <div class="modal-footer-right">
+      <button class="btn btn-secondary" id="catalogCancelBtn">Cancel</button>
+      <button class="btn btn-primary" id="catalogSaveBtn">Save</button>
+    </div>
+  </div>
+</div>

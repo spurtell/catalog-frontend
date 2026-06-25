@@ -1,32 +1,27 @@
 <script>
 /* ===================================================================
-   ACM Resource Catalog — Client-side JavaScript
+   OME Resource Catalog — Client-side JavaScript
    =================================================================== */
 
 // ─── State ──────────────────────────────────────────────────────────
-var catalogData = [];        // All catalog rows from sheet
-var filterOptions = {};      // Unique values per column for dropdowns
-var componentsList = [];     // Valid component names from Components tab
-var currentView = 'catalog'; // 'catalog' | 'team-directory'
+var catalogData = [];
+var filterOptions = {};
+var currentView = 'catalog';
 
 // Team Directory state
-var tdCurrentTab = 'Triad Map';
-var tdData = {};             // { tabName: {headers, rows} }
+var tdData = null;
 var tdSelectedRow = null;
 
 // Column header names (must match Sheet)
 var CATALOG_COLS = {
-  title: 'Title',
-  resourceType: 'Resource Type',
-  functionArea: 'Function Area',
-  component: 'Component',
-  systemOfRecord: 'System of Record',
-  link: 'Link',
-  owner: 'Owner/DRI',
+  name: 'Name',
+  category: 'Category',
+  type: 'Type',
+  url: 'URL',
+  description: 'Description',
+  owner: 'Owner',
   status: 'Status',
-  lastReviewed: 'Last Reviewed',
-  reviewCadence: 'Review Cadence',
-  summary: 'Short Summary'
+  tags: 'Tags'
 };
 
 // ─── Initialization ─────────────────────────────────────────────────
@@ -54,53 +49,30 @@ function setupNavigation() {
 function switchView(view) {
   currentView = view;
 
-  // Update tab styles
   document.querySelectorAll('.nav-tab').forEach(function(t) {
     t.classList.toggle('active', t.getAttribute('data-view') === view);
   });
 
-  // Show/hide views
   document.getElementById('catalogView').style.display = view === 'catalog' ? '' : 'none';
-  document.getElementById('teamDirectoryView').style.display = view === 'team-directory' ? '' : 'none';
+  document.getElementById('teamView').style.display = view === 'team' ? '' : 'none';
 
-  // Update add button
   var addBtn = document.getElementById('addBtn');
-  addBtn.style.display = '';
   if (view === 'catalog') {
+    addBtn.style.display = '';
     addBtn.textContent = '+ Add Resource';
     addBtn.onclick = function() { openCatalogModal(null); };
   } else {
-    addBtn.style.display = 'none'; // Team directory uses its own add button
+    addBtn.style.display = 'none';
   }
 
-  // Load team directory data on first visit
-  if (view === 'team-directory') {
-    updateTriadFilterVisibility(tdCurrentTab);
-    if (!tdData[tdCurrentTab]) {
-      loadTeamDirectoryTab(tdCurrentTab);
-    }
-  }
-}
-
-function navigateToTab(tabName) {
-  switchView('team-directory');
-  tdCurrentTab = tabName;
-  document.querySelectorAll('.td-tab').forEach(function(t) {
-    t.classList.toggle('active', t.getAttribute('data-tab') === tabName);
-  });
-  updateTriadFilterVisibility(tabName);
-  if (tdData[tabName]) {
-    renderTeamDirectoryTable(tabName);
-  } else {
-    loadTeamDirectoryTab(tabName);
+  if (view === 'team' && !tdData) {
+    loadTeamDirectory();
   }
 }
 
 // ─── Catalog: Data Loading ──────────────────────────────────────────
 function loadCatalogData() {
   showLoading(true);
-  // Load components list in parallel with catalog data
-  loadComponentsList();
   google.script.run
     .withSuccessHandler(function(result) {
       if (result.success) {
@@ -116,31 +88,6 @@ function loadCatalogData() {
       showLoading(false);
     })
     .getSheetData('Catalog');
-}
-
-function loadComponentsList() {
-  google.script.run
-    .withSuccessHandler(function(result) {
-      if (result.success && result.data.rows.length > 0) {
-        // Extract unique component names from the Triad Map "Components" column
-        var uniqueSet = {};
-        result.data.rows.forEach(function(row) {
-          var val = (row['Components'] || '').toString();
-          val.split(',').forEach(function(part) {
-            var trimmed = part.trim();
-            if (trimmed) uniqueSet[trimmed] = true;
-          });
-        });
-        componentsList = Object.keys(uniqueSet).sort();
-        buildComponentMultiselect();
-        populateFilterDropdowns();
-        renderCatalogCards();
-      }
-    })
-    .withFailureHandler(function() {
-      componentsList = [];
-    })
-    .getSheetData('Triad Map');
 }
 
 function loadFilterOptions() {
@@ -164,46 +111,37 @@ function loadFilterOptions() {
 
 // ─── Catalog: Filters ───────────────────────────────────────────────
 function setupCatalogFilters() {
-  // Debounced search
   var searchTimer;
   document.getElementById('filterSearch').addEventListener('input', function() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(renderCatalogCards, 200);
   });
 
-  // Dropdown change handlers
-  ['filterFunctionArea', 'filterComponent', 'filterStatus', 'filterResourceType']
+  ['filterCategory', 'filterType', 'filterStatus']
     .forEach(function(id) {
       document.getElementById(id).addEventListener('change', renderCatalogCards);
     });
 
-  // Clear filters
   document.getElementById('clearFilters').addEventListener('click', function() {
     document.getElementById('filterSearch').value = '';
-    document.getElementById('filterFunctionArea').value = '';
-    document.getElementById('filterComponent').value = '';
+    document.getElementById('filterCategory').value = '';
+    document.getElementById('filterType').value = '';
     document.getElementById('filterStatus').value = '';
-    document.getElementById('filterResourceType').value = '';
     renderCatalogCards();
   });
 }
 
 function populateFilterDropdowns() {
   var mapping = {
-    'filterFunctionArea': 'Function Area',
-    'filterComponent': 'Component',
-    'filterStatus': 'Status',
-    'filterResourceType': 'Resource Type'
+    'filterCategory': 'Category',
+    'filterType': 'Type',
+    'filterStatus': 'Status'
   };
 
   for (var selectId in mapping) {
     var colName = mapping[selectId];
     var select = document.getElementById(selectId);
-    // Use componentsList for the Component filter if available
-    var values = (selectId === 'filterComponent' && componentsList.length > 0)
-      ? componentsList
-      : (filterOptions[colName] || []);
-    // Keep the "All" option, add the rest
+    var values = filterOptions[colName] || [];
     select.innerHTML = '<option value="">All</option>';
     values.forEach(function(v) {
       var opt = document.createElement('option');
@@ -216,113 +154,24 @@ function populateFilterDropdowns() {
 
 function getFilteredCatalog() {
   var search = document.getElementById('filterSearch').value.toLowerCase().trim();
-  var fArea = document.getElementById('filterFunctionArea').value;
-  var fComp = document.getElementById('filterComponent').value;
+  var fCategory = document.getElementById('filterCategory').value;
+  var fType = document.getElementById('filterType').value;
   var fStatus = document.getElementById('filterStatus').value;
-  var fType = document.getElementById('filterResourceType').value;
 
   return catalogData.filter(function(row) {
-    // Text search across title and summary
     if (search) {
-      var title = (row[CATALOG_COLS.title] || '').toLowerCase();
-      var summary = (row[CATALOG_COLS.summary] || '').toLowerCase();
-      if (title.indexOf(search) === -1 && summary.indexOf(search) === -1) return false;
+      var name = (row[CATALOG_COLS.name] || '').toLowerCase();
+      var desc = (row[CATALOG_COLS.description] || '').toLowerCase();
+      var tags = (row[CATALOG_COLS.tags] || '').toLowerCase();
+      if (name.indexOf(search) === -1 && desc.indexOf(search) === -1 && tags.indexOf(search) === -1) return false;
     }
 
-    // Multi-value field matching (semicolon-separated)
-    if (fArea && !multiValueMatch(row[CATALOG_COLS.functionArea], fArea)) return false;
-    if (fComp && !multiValueMatch(row[CATALOG_COLS.component], fComp)) return false;
-
-    // Exact match fields
+    if (fCategory && row[CATALOG_COLS.category] !== fCategory) return false;
+    if (fType && row[CATALOG_COLS.type] !== fType) return false;
     if (fStatus && row[CATALOG_COLS.status] !== fStatus) return false;
-    if (fType && row[CATALOG_COLS.resourceType] !== fType) return false;
 
     return true;
   });
-}
-
-function multiValueMatch(cellValue, filterValue) {
-  if (!cellValue) return false;
-  var parts = cellValue.toString().split(';');
-  for (var i = 0; i < parts.length; i++) {
-    if (parts[i].trim() === filterValue) return true;
-  }
-  return false;
-}
-
-// ─── Catalog: Component Multi-select ────────────────────────────────
-function buildComponentMultiselect() {
-  var dropdown = document.getElementById('componentDropdown');
-  if (!dropdown) return;
-  dropdown.innerHTML = '';
-  componentsList.forEach(function(name) {
-    var label = document.createElement('label');
-    var cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.value = name;
-    cb.addEventListener('change', updateComponentHidden);
-    label.appendChild(cb);
-    label.appendChild(document.createTextNode(' ' + name));
-    dropdown.appendChild(label);
-  });
-}
-
-function setupComponentMultiselect() {
-  var toggle = document.getElementById('componentToggle');
-  var dropdown = document.getElementById('componentDropdown');
-
-  toggle.addEventListener('click', function(e) {
-    e.preventDefault();
-    var open = dropdown.style.display !== 'none';
-    dropdown.style.display = open ? 'none' : '';
-  });
-
-  // Close when clicking outside
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest('#componentMultiselect')) {
-      dropdown.style.display = 'none';
-    }
-  });
-}
-
-function updateComponentHidden() {
-  var checks = document.querySelectorAll('#componentDropdown input[type="checkbox"]');
-  var selected = [];
-  checks.forEach(function(cb) { if (cb.checked) selected.push(cb.value); });
-  document.getElementById('formComponent').value = selected.join('; ');
-  // Update toggle label
-  var toggle = document.getElementById('componentToggle');
-  if (selected.length === 0) {
-    toggle.innerHTML = '<span class="placeholder">Select components...</span><span class="arrow">&#9662;</span>';
-  } else {
-    toggle.innerHTML = escapeHtml(selected.join('; ')) + '<span class="arrow">&#9662;</span>';
-  }
-}
-
-function setComponentMultiselectValues(semicolonStr) {
-  var vals = (semicolonStr || '').split(';').map(function(s) { return s.trim(); }).filter(Boolean);
-  var checks = document.querySelectorAll('#componentDropdown input[type="checkbox"]');
-  checks.forEach(function(cb) {
-    cb.checked = vals.indexOf(cb.value) !== -1;
-  });
-  // Update toggle label
-  var toggle = document.getElementById('componentToggle');
-  if (vals.length === 0 || (vals.length === 1 && vals[0] === '')) {
-    toggle.innerHTML = '<span class="placeholder">Select components...</span><span class="arrow">&#9662;</span>';
-  } else {
-    toggle.innerHTML = escapeHtml(vals.join('; ')) + '<span class="arrow">&#9662;</span>';
-  }
-  document.getElementById('formComponent').value = semicolonStr || '';
-}
-
-function isComponentValid(componentStr) {
-  if (!componentStr || componentsList.length === 0) return true; // no list = no validation
-  var parts = componentStr.toString().split(';');
-  for (var i = 0; i < parts.length; i++) {
-    var part = parts[i].trim();
-    if (part && componentsList.indexOf(part) === -1) return false;
-  }
-  return true;
 }
 
 // ─── Catalog: Card Rendering ────────────────────────────────────────
@@ -344,41 +193,33 @@ function renderCatalogCards() {
   grid.innerHTML = filtered.map(function(row) {
     var status = row[CATALOG_COLS.status] || '';
     var statusClass = 'badge-status-' + status.toLowerCase().replace(/\s+/g, '-');
-    var resourceType = row[CATALOG_COLS.resourceType] || '';
-    var title = escapeHtml(row[CATALOG_COLS.title] || 'Untitled');
-    var summary = escapeHtml(row[CATALOG_COLS.summary] || '');
-    var link = row[CATALOG_COLS.link] || '';
-    var component = escapeHtml(row[CATALOG_COLS.component] || '');
-    var systemOfRecord = escapeHtml(row[CATALOG_COLS.systemOfRecord] || '');
+    var type = row[CATALOG_COLS.type] || '';
+    var category = row[CATALOG_COLS.category] || '';
+    var name = escapeHtml(row[CATALOG_COLS.name] || 'Untitled');
+    var desc = escapeHtml(row[CATALOG_COLS.description] || '');
+    var url = row[CATALOG_COLS.url] || '';
+    var owner = escapeHtml(row[CATALOG_COLS.owner] || '');
+    var tags = escapeHtml(row[CATALOG_COLS.tags] || '');
     var rowIndex = row._rowIndex;
 
     var linkBtn = '';
-    if (link) {
-      if (link.indexOf('#team-directory:') === 0) {
-        var tabName = link.substring('#team-directory:'.length);
-        linkBtn = '<button class="card-link-btn" onclick="event.stopPropagation(); navigateToTab(\'' + escapeAttr(tabName) + '\');">View &rarr;</button>';
-      } else {
-        linkBtn = '<a class="card-link-btn" href="' + escapeHtml(link) + '" target="_blank" rel="noopener" onclick="event.stopPropagation();">Open &rarr;</a>';
-      }
-    }
-
-    var componentWarning = '';
-    var rawComponent = row[CATALOG_COLS.component] || '';
-    if (!isComponentValid(rawComponent)) {
-      componentWarning = '<span class="badge badge-component-warning" title="Component not in Components list">Update Component</span>';
+    if (url) {
+      linkBtn = '<a class="card-link-btn" href="' + escapeHtml(url) + '" target="_blank" rel="noopener" onclick="event.stopPropagation();">Open &rarr;</a>';
     }
 
     return '<div class="card" onclick="openCatalogModal(' + rowIndex + ')">' +
       '<div class="card-header">' +
-        '<span class="badge badge-type">' + escapeHtml(resourceType) + '</span>' +
-        componentWarning +
+        '<div class="card-badges">' +
+          '<span class="badge badge-category">' + escapeHtml(category) + '</span>' +
+          '<span class="badge badge-type">' + escapeHtml(type) + '</span>' +
+        '</div>' +
         '<span class="badge ' + statusClass + '">' + escapeHtml(status) + '</span>' +
       '</div>' +
-      '<div class="card-title">' + title + '</div>' +
-      '<div class="card-summary">' + summary + '</div>' +
+      '<div class="card-title">' + name + '</div>' +
+      (desc ? '<div class="card-summary">' + desc + '</div>' : '') +
       '<div class="card-meta">' +
-        (component ? '<span class="card-meta-item">' + component + '</span>' : '') +
-        (systemOfRecord ? '<span class="card-meta-item">&middot; ' + systemOfRecord + '</span>' : '') +
+        (owner ? '<span class="card-meta-item">' + owner + '</span>' : '') +
+        (tags ? '<span class="card-meta-item">' + (owner ? '&middot; ' : '') + tags + '</span>' : '') +
         linkBtn +
       '</div>' +
     '</div>';
@@ -391,7 +232,6 @@ function setupCatalogModal() {
   document.getElementById('catalogModalBackdrop').addEventListener('click', closeCatalogModal);
   document.getElementById('catalogCancelBtn').addEventListener('click', closeCatalogModal);
   document.getElementById('catalogSaveBtn').addEventListener('click', saveCatalogRecord);
-  setupComponentMultiselect();
   document.getElementById('catalogDeleteBtn').addEventListener('click', function() {
     var rowIndex = parseInt(document.getElementById('formRowIndex').value);
     confirmAction('Delete Resource', 'Are you sure you want to delete this resource? This cannot be undone.', function() {
@@ -399,7 +239,6 @@ function setupCatalogModal() {
     });
   });
 
-  // Close on Escape
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Escape') {
       closeCatalogModal();
@@ -414,12 +253,10 @@ function openCatalogModal(rowIndex) {
   var deleteBtn = document.getElementById('catalogDeleteBtn');
 
   if (rowIndex === null) {
-    // Add mode
     titleEl.textContent = 'Add Resource';
     deleteBtn.style.display = 'none';
     clearCatalogForm();
   } else {
-    // Edit mode — find the row
     titleEl.textContent = 'Edit Resource';
     deleteBtn.style.display = '';
     var row = catalogData.find(function(r) { return r._rowIndex === rowIndex; });
@@ -427,7 +264,7 @@ function openCatalogModal(rowIndex) {
   }
 
   modal.style.display = '';
-  document.getElementById('formTitle').focus();
+  document.getElementById('formName').focus();
 }
 
 function closeCatalogModal() {
@@ -436,60 +273,58 @@ function closeCatalogModal() {
 
 function clearCatalogForm() {
   document.getElementById('formRowIndex').value = '';
-  document.getElementById('formTitle').value = '';
-  document.getElementById('formResourceType').value = '';
-  document.getElementById('formFunctionArea').value = '';
-  setComponentMultiselectValues('');
-  document.getElementById('formSystemOfRecord').value = '';
-  document.getElementById('formLink').value = '';
+  document.getElementById('formName').value = '';
+  document.getElementById('formCategory').value = '';
+  document.getElementById('formType').value = '';
+  document.getElementById('formUrl').value = '';
+  document.getElementById('formDescription').value = '';
   document.getElementById('formOwner').value = '';
   document.getElementById('formStatus').value = '';
-  document.getElementById('formLastReviewed').value = '';
-  document.getElementById('formReviewCadence').value = '';
-  document.getElementById('formSummary').value = '';
+  document.getElementById('formTags').value = '';
 }
 
 function populateCatalogForm(row) {
   document.getElementById('formRowIndex').value = row._rowIndex;
-  document.getElementById('formTitle').value = row[CATALOG_COLS.title] || '';
-  document.getElementById('formResourceType').value = row[CATALOG_COLS.resourceType] || '';
-  document.getElementById('formFunctionArea').value = row[CATALOG_COLS.functionArea] || '';
-  setComponentMultiselectValues(row[CATALOG_COLS.component] || '');
-  document.getElementById('formSystemOfRecord').value = row[CATALOG_COLS.systemOfRecord] || '';
-  document.getElementById('formLink').value = row[CATALOG_COLS.link] || '';
+  document.getElementById('formName').value = row[CATALOG_COLS.name] || '';
+  document.getElementById('formCategory').value = row[CATALOG_COLS.category] || '';
+  document.getElementById('formType').value = row[CATALOG_COLS.type] || '';
+  document.getElementById('formUrl').value = row[CATALOG_COLS.url] || '';
+  document.getElementById('formDescription').value = row[CATALOG_COLS.description] || '';
   document.getElementById('formOwner').value = row[CATALOG_COLS.owner] || '';
   document.getElementById('formStatus').value = row[CATALOG_COLS.status] || '';
-  document.getElementById('formLastReviewed').value = row[CATALOG_COLS.lastReviewed] || '';
-  document.getElementById('formReviewCadence').value = row[CATALOG_COLS.reviewCadence] || '';
-  document.getElementById('formSummary').value = row[CATALOG_COLS.summary] || '';
+  document.getElementById('formTags').value = row[CATALOG_COLS.tags] || '';
 }
 
 function getCatalogFormData() {
   var data = {};
-  data[CATALOG_COLS.title] = document.getElementById('formTitle').value.trim();
-  data[CATALOG_COLS.resourceType] = document.getElementById('formResourceType').value;
-  data[CATALOG_COLS.functionArea] = document.getElementById('formFunctionArea').value.trim();
-  data[CATALOG_COLS.component] = document.getElementById('formComponent').value.trim();
-  data[CATALOG_COLS.systemOfRecord] = document.getElementById('formSystemOfRecord').value;
-  data[CATALOG_COLS.link] = document.getElementById('formLink').value.trim();
+  data[CATALOG_COLS.name] = document.getElementById('formName').value.trim();
+  data[CATALOG_COLS.category] = document.getElementById('formCategory').value;
+  data[CATALOG_COLS.type] = document.getElementById('formType').value;
+  data[CATALOG_COLS.url] = document.getElementById('formUrl').value.trim();
+  data[CATALOG_COLS.description] = document.getElementById('formDescription').value.trim();
   data[CATALOG_COLS.owner] = document.getElementById('formOwner').value.trim();
   data[CATALOG_COLS.status] = document.getElementById('formStatus').value;
-  data[CATALOG_COLS.lastReviewed] = document.getElementById('formLastReviewed').value;
-  data[CATALOG_COLS.reviewCadence] = document.getElementById('formReviewCadence').value.trim();
-  data[CATALOG_COLS.summary] = document.getElementById('formSummary').value.trim();
+  data[CATALOG_COLS.tags] = document.getElementById('formTags').value.trim();
   return data;
 }
 
 function saveCatalogRecord() {
   var formData = getCatalogFormData();
 
-  // Validate required fields
-  if (!formData[CATALOG_COLS.title]) {
-    showMessage('Title is required.', 'error');
+  if (!formData[CATALOG_COLS.name]) {
+    showMessage('Name is required.', 'error');
     return;
   }
-  if (!formData[CATALOG_COLS.resourceType]) {
-    showMessage('Resource Type is required.', 'error');
+  if (!formData[CATALOG_COLS.category]) {
+    showMessage('Category is required.', 'error');
+    return;
+  }
+  if (!formData[CATALOG_COLS.type]) {
+    showMessage('Type is required.', 'error');
+    return;
+  }
+  if (!formData[CATALOG_COLS.url]) {
+    showMessage('URL is required.', 'error');
     return;
   }
   if (!formData[CATALOG_COLS.status]) {
@@ -503,7 +338,6 @@ function saveCatalogRecord() {
   saveBtn.textContent = 'Saving...';
 
   if (rowIndex) {
-    // Update existing
     google.script.run
       .withSuccessHandler(function(result) {
         saveBtn.disabled = false;
@@ -523,7 +357,6 @@ function saveCatalogRecord() {
       })
       .updateRow('Catalog', parseInt(rowIndex), formData);
   } else {
-    // Add new
     google.script.run
       .withSuccessHandler(function(result) {
         saveBtn.disabled = false;
@@ -546,68 +379,28 @@ function saveCatalogRecord() {
 }
 
 function deleteCatalogRecord(rowIndex) {
+  closeCatalogModal();
   google.script.run
     .withSuccessHandler(function(result) {
       if (result.success) {
         showMessage('Resource deleted.', 'success');
-        closeCatalogModal();
         loadCatalogData();
       } else {
         showMessage('Error: ' + result.error, 'error');
       }
     })
     .withFailureHandler(function(err) {
-      showMessage('Failed to delete.', 'error');
+      showMessage('Failed to delete: ' + err.message, 'error');
     })
     .deleteRow('Catalog', rowIndex);
 }
 
 // ─── Team Directory ─────────────────────────────────────────────────
-var TRIAD_FILTER_COLS = ['PM', 'Eng Manager', 'Architect'];
-var TRIAD_FILTER_IDS = { 'PM': 'tdFilterPM', 'Eng Manager': 'tdFilterEM', 'Architect': 'tdFilterArch' };
-
 function setupTeamDirectory() {
-  // Tab clicks
-  document.getElementById('tdTabs').addEventListener('click', function(e) {
-    var tab = e.target.closest('.td-tab');
-    if (!tab) return;
-    var tabName = tab.getAttribute('data-tab');
-    tdCurrentTab = tabName;
-
-    document.querySelectorAll('.td-tab').forEach(function(t) {
-      t.classList.toggle('active', t.getAttribute('data-tab') === tabName);
-    });
-
-    updateTriadFilterVisibility(tabName);
-
-    if (tdData[tabName]) {
-      renderTeamDirectoryTable(tabName);
-    } else {
-      loadTeamDirectoryTab(tabName);
-    }
-  });
-
-  // Triad Map filter change handlers
-  TRIAD_FILTER_COLS.forEach(function(col) {
-    document.getElementById(TRIAD_FILTER_IDS[col]).addEventListener('change', function() {
-      renderTeamDirectoryTable('Triad Map');
-    });
-  });
-
-  // Triad Map clear filters
-  document.getElementById('tdClearFilters').addEventListener('click', function() {
-    TRIAD_FILTER_COLS.forEach(function(col) {
-      document.getElementById(TRIAD_FILTER_IDS[col]).value = '';
-    });
-    renderTeamDirectoryTable('Triad Map');
-  });
-
-  // Add row
   document.getElementById('tdAddRow').addEventListener('click', function() {
     addTeamDirectoryRow();
   });
 
-  // Delete selected row
   document.getElementById('tdDeleteRow').addEventListener('click', function() {
     if (tdSelectedRow === null) {
       showMessage('Select a row first.', 'error');
@@ -619,53 +412,7 @@ function setupTeamDirectory() {
   });
 }
 
-function updateTriadFilterVisibility(tabName) {
-  document.getElementById('tdFilterBar').style.display = tabName === 'Triad Map' ? '' : 'none';
-}
-
-function populateTriadFilters() {
-  var data = tdData['Triad Map'];
-  if (!data) return;
-
-  TRIAD_FILTER_COLS.forEach(function(col) {
-    var select = document.getElementById(TRIAD_FILTER_IDS[col]);
-    var current = select.value;
-    var uniqueSet = {};
-    data.rows.forEach(function(row) {
-      var val = (row[col] || '').trim();
-      if (val) uniqueSet[val] = true;
-    });
-    var values = Object.keys(uniqueSet).sort();
-    select.innerHTML = '<option value="">All</option>';
-    values.forEach(function(v) {
-      var opt = document.createElement('option');
-      opt.value = v;
-      opt.textContent = v;
-      select.appendChild(opt);
-    });
-    select.value = current; // preserve selection after repopulate
-  });
-}
-
-function getFilteredTriadRows() {
-  var data = tdData['Triad Map'];
-  if (!data) return [];
-
-  var filters = {};
-  TRIAD_FILTER_COLS.forEach(function(col) {
-    filters[col] = document.getElementById(TRIAD_FILTER_IDS[col]).value;
-  });
-
-  return data.rows.filter(function(row) {
-    for (var i = 0; i < TRIAD_FILTER_COLS.length; i++) {
-      var col = TRIAD_FILTER_COLS[i];
-      if (filters[col] && (row[col] || '') !== filters[col]) return false;
-    }
-    return true;
-  });
-}
-
-function loadTeamDirectoryTab(tabName) {
+function loadTeamDirectory() {
   var container = document.getElementById('tdTableContainer');
   container.innerHTML = '<div class="loading-overlay"><div class="loading-spinner"></div><p>Loading...</p></div>';
   document.getElementById('tdEmpty').style.display = 'none';
@@ -673,63 +420,48 @@ function loadTeamDirectoryTab(tabName) {
   google.script.run
     .withSuccessHandler(function(result) {
       if (result.success) {
-        tdData[tabName] = result.data;
-        if (tabName === 'Triad Map') populateTriadFilters();
-        renderTeamDirectoryTable(tabName);
+        tdData = result.data;
+        renderTeamDirectoryTable();
       } else {
         container.innerHTML = '';
-        showMessage('Error loading ' + tabName + ': ' + result.error, 'error');
+        showMessage('Error loading team directory: ' + result.error, 'error');
       }
     })
     .withFailureHandler(function(err) {
       container.innerHTML = '';
-      showMessage('Failed to load ' + tabName + '.', 'error');
+      showMessage('Failed to load team directory.', 'error');
     })
-    .getSheetData(tabName);
+    .getSheetData('Team');
 }
 
-function renderTeamDirectoryTable(tabName) {
-  var data = tdData[tabName];
+function renderTeamDirectoryTable() {
   var container = document.getElementById('tdTableContainer');
   var empty = document.getElementById('tdEmpty');
+  var countEl = document.getElementById('tdItemCount');
   tdSelectedRow = null;
 
-  if (!data || data.rows.length === 0) {
+  if (!tdData || tdData.rows.length === 0) {
     container.innerHTML = '';
     empty.style.display = '';
+    countEl.textContent = '0 members';
     return;
   }
 
-  var rows = (tabName === 'Triad Map') ? getFilteredTriadRows() : data.rows;
-
-  // Update item count for Triad Map
-  var countEl = document.getElementById('tdItemCount');
-  if (tabName === 'Triad Map') {
-    countEl.textContent = rows.length + ' of ' + data.rows.length + ' rows';
-  } else {
-    countEl.textContent = '';
-  }
-
-  if (rows.length === 0) {
-    container.innerHTML = '';
-    empty.style.display = '';
-    return;
-  }
-
+  countEl.textContent = tdData.rows.length + ' members';
   empty.style.display = 'none';
 
   var html = '<table class="data-table">';
   html += '<thead><tr>';
-  data.headers.forEach(function(h) {
+  tdData.headers.forEach(function(h) {
     html += '<th>' + escapeHtml(h) + '</th>';
   });
   html += '</tr></thead><tbody>';
 
-  rows.forEach(function(row) {
+  tdData.rows.forEach(function(row) {
     html += '<tr data-row-index="' + row._rowIndex + '" onclick="selectTdRow(this, ' + row._rowIndex + ')">';
-    data.headers.forEach(function(h) {
+    tdData.headers.forEach(function(h) {
       var val = row[h] || '';
-      html += '<td class="editable" ondblclick="startInlineEdit(this, \'' + escapeAttr(tabName) + '\', ' + row._rowIndex + ', \'' + escapeAttr(h) + '\')">' + escapeHtml(val) + '</td>';
+      html += '<td class="editable" ondblclick="startInlineEdit(this, ' + row._rowIndex + ', \'' + escapeAttr(h) + '\')">' + escapeHtml(val) + '</td>';
     });
     html += '</tr>';
   });
@@ -739,16 +471,13 @@ function renderTeamDirectoryTable(tabName) {
 }
 
 function selectTdRow(tr, rowIndex) {
-  // Deselect previous
   var prev = document.querySelector('.data-table tr.selected');
   if (prev) prev.classList.remove('selected');
-
   tr.classList.add('selected');
   tdSelectedRow = rowIndex;
 }
 
-function startInlineEdit(td, tabName, rowIndex, colName) {
-  // Don't start if already editing
+function startInlineEdit(td, rowIndex, colName) {
   if (td.querySelector('input')) return;
 
   var currentValue = td.textContent;
@@ -766,12 +495,11 @@ function startInlineEdit(td, tabName, rowIndex, colName) {
     td.textContent = newValue;
 
     if (newValue !== currentValue) {
-      // Build the full row data with the updated value
-      var row = tdData[tabName].rows.find(function(r) { return r._rowIndex === rowIndex; });
+      var row = tdData.rows.find(function(r) { return r._rowIndex === rowIndex; });
       if (row) {
         row[colName] = newValue;
         var rowData = {};
-        tdData[tabName].headers.forEach(function(h) {
+        tdData.headers.forEach(function(h) {
           rowData[h] = row[h] || '';
         });
 
@@ -788,7 +516,7 @@ function startInlineEdit(td, tabName, rowIndex, colName) {
             td.textContent = currentValue;
             row[colName] = currentValue;
           })
-          .updateRow(tabName, rowIndex, rowData);
+          .updateRow('Team', rowIndex, rowData);
       }
     }
   }
@@ -801,33 +529,28 @@ function startInlineEdit(td, tabName, rowIndex, colName) {
 }
 
 function addTeamDirectoryRow() {
-  var tabName = tdCurrentTab;
-  var data = tdData[tabName];
-  if (!data) {
-    showMessage('Tab data not loaded. Try switching tabs first.', 'error');
+  if (!tdData) {
+    showMessage('Team data not loaded.', 'error');
     return;
   }
 
   var newRow = {};
-  data.headers.forEach(function(h) { newRow[h] = ''; });
+  tdData.headers.forEach(function(h) { newRow[h] = ''; });
 
   google.script.run
     .withSuccessHandler(function(result) {
       if (result.success) {
         showMessage('Row added.', 'success');
-        // Add the row locally so it renders immediately
-        // (empty rows are invisible to getDataRange on reload)
         var localRow = { _rowIndex: result.data.rowIndex };
-        data.headers.forEach(function(h) { localRow[h] = ''; });
-        data.rows.push(localRow);
-        renderTeamDirectoryTable(tabName);
-        // Select the new row and start editing the first cell
+        tdData.headers.forEach(function(h) { localRow[h] = ''; });
+        tdData.rows.push(localRow);
+        renderTeamDirectoryTable();
         var newTr = document.querySelector('.data-table tr[data-row-index="' + localRow._rowIndex + '"]');
         if (newTr) {
           selectTdRow(newTr, localRow._rowIndex);
           var firstTd = newTr.querySelector('td.editable');
           if (firstTd) {
-            startInlineEdit(firstTd, tabName, localRow._rowIndex, data.headers[0]);
+            startInlineEdit(firstTd, localRow._rowIndex, tdData.headers[0]);
           }
         }
       } else {
@@ -837,7 +560,7 @@ function addTeamDirectoryRow() {
     .withFailureHandler(function(err) {
       showMessage('Failed to add row.', 'error');
     })
-    .addRow(tabName, newRow);
+    .addRow('Team', newRow);
 }
 
 function deleteTeamDirectoryRow(rowIndex) {
@@ -846,7 +569,7 @@ function deleteTeamDirectoryRow(rowIndex) {
       if (result.success) {
         showMessage('Row deleted.', 'success');
         tdSelectedRow = null;
-        loadTeamDirectoryTab(tdCurrentTab);
+        loadTeamDirectory();
       } else {
         showMessage('Error: ' + result.error, 'error');
       }
@@ -854,7 +577,7 @@ function deleteTeamDirectoryRow(rowIndex) {
     .withFailureHandler(function(err) {
       showMessage('Failed to delete row.', 'error');
     })
-    .deleteRow(tdCurrentTab, rowIndex);
+    .deleteRow('Team', rowIndex);
 }
 
 // ─── Confirm Dialog ─────────────────────────────────────────────────
